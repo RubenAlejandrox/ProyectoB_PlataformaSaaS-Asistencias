@@ -7,46 +7,76 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Permission\Traits\HasRoles;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, SoftDeletes, HasRoles, HasApiTokens;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
-        'name',
+        'institution_id',
+        'first_name',
+        'last_name',
         'email',
-        'password',
+        'password_hash',
+        'is_active',
+        'failed_login_attempts',
+        'locked_until',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
-        'password',
-        'remember_token',
+        'password_hash',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'is_active'              => 'boolean',
+            'locked_until'           => 'datetime',
+            'failed_login_attempts'  => 'integer',
         ];
     }
 
+    // ── Auth ──────────────────────────────────────────────────────────────────
+    public function getAuthPassword(): string
+    {
+        return $this->password_hash;
+    }
 
-    //jsxjsxbhjsbab
+    public function isLocked(): bool
+    {
+        return $this->locked_until && now()->lt($this->locked_until);
+    }
+
+    // ── Relaciones ────────────────────────────────────────────────────────────
+    public function institution()
+    {
+        return $this->belongsTo(Institution::class);
+    }
+
+    public function classrooms()
+    {
+        return $this->hasMany(Classroom::class, 'teacher_id');
+    }
+
+    public function enrollments()
+    {
+        return $this->hasMany(Enrollment::class, 'student_id');
+    }
+
+    public function attendances()
+    {
+        return $this->hasMany(Attendance::class, 'student_id');
+    }
+
+    public function justifications()
+    {
+        return $this->hasMany(Justification::class, 'student_id');
+    }
+
+    public function alerts()
+    {
+        return $this->hasMany(Alert::class, 'student_id');
+    }
 }
