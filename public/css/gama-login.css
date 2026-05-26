@@ -654,4 +654,20 @@ body.auth-page {
         font-size: 16px;
         height: 48px;
     }
+
+/* ── Alert error (login/register feedback) ── */
+.alert-error {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
+    border-left: 4px solid #DC3545;
+    border-radius: var(--radius-md);
+    padding: .75rem 1rem;
+    margin-bottom: 1.2rem;
+    font-size: .9rem;
+    color: #991b1b;
+}
+.alert-error i { flex-shrink: 0; }
 }

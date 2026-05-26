@@ -14,6 +14,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\AdminEditController;
+use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Route;
 
 // ── Public ────────────────────────────────────────────────────────────────────
@@ -27,6 +28,9 @@ Route::middleware('auth:sanctum')->group(function () {
 // ── Protected (token + plan + audit) ─────────────────────────────────────────
 Route::middleware(['auth:sanctum', 'plan', 'auditoria'])->group(function () {
 
+    // Dashboard Polimórfico (Disponible para cualquier rol autenticado)
+    Route::get('/dashboard', [DashboardController::class, 'index']);
+    
     // Administrator
     Route::middleware('role:Administrator')->group(function () {
         Route::apiResource('institutions', InstitutionController::class);
@@ -40,7 +44,7 @@ Route::middleware(['auth:sanctum', 'plan', 'auditoria'])->group(function () {
     // Teacher
     Route::middleware('role:Teacher')->group(function () {
         Route::apiResource('classrooms', ClassroomController::class);
-        Route::apiResource('sessions', SessionController::class);
+        Route::apiResource('sessions', SessionController::class)->parameters(['sessions' => 'session']);
         Route::post('classrooms/{classroom}/invitation-codes', [InvitationCodeController::class, 'store']);
         Route::post('sessions/{session}/keys', [SessionKeyController::class, 'store']);
         Route::post('cycles/{cycle}/close', [CycleController::class, 'close']);

@@ -82,4 +82,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(Alert::class, 'student_id');
     }
+    // En User.php — agregar
+    public function getAuthIdentifierName(): string
+    {
+        return 'email';
+    }
 }

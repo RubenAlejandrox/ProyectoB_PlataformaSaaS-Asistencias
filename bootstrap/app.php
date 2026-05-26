@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         
+        $middleware->statefulApi();
         // Global — se ejecuta en cada request que entra a la aplicación
         $middleware->append(\App\Http\Middleware\SetInstitutionScope::class);
 

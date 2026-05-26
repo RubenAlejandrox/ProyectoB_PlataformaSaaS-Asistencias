@@ -8,6 +8,9 @@ class Session extends Model
 {
     use HasUuidKey;
 
+    // Forzar el nuevo nombre para evitar el conflicto con Laravel
+    protected $table = 'class_sessions';
+
     protected $fillable = [
         'classroom_id', 'session_date', 'started_at', 'ended_at', 'is_active',
     ];

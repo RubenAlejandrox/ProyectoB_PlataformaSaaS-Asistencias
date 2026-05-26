@@ -12,15 +12,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('sessions', function (Blueprint $table) {
-            $table->uuid('id')->primary()->default(DB::raw('gen_random_uuid()'));
-            $table->foreignUuid('classroom_id')->constrained()->cascadeOnDelete();
-            $table->date('session_date');
-            $table->time('started_at');
-            $table->time('ended_at')->nullable();
-            $table->boolean('is_active')->default(true);  // one active per classroom
-            $table->timestamps();
-        });
+        Schema::create('class_sessions', function (Blueprint $table) {
+    $table->uuid('id')->primary()->default(DB::raw('gen_random_uuid()'));
+    $table->foreignUuid('classroom_id')->constrained()->cascadeOnDelete();
+    $table->date('session_date');
+    $table->time('started_at');
+    $table->time('ended_at')->nullable();
+    $table->boolean('is_active')->default(true);
+    $table->timestamps();
+});
     }
 
     /**
