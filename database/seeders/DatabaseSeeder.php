@@ -4,6 +4,9 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 
+/**
+     * Seed the application's database.
+     */
 class DatabaseSeeder extends Seeder
 {
     public function run(): void

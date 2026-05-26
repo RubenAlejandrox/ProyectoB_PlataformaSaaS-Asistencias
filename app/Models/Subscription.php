@@ -22,6 +22,10 @@ class Subscription extends Model
     public function plan()        { return $this->belongsTo(Plan::class); }
     public function payments()    { return $this->hasMany(Payment::class); }
     public function scopeActive($q){ return $q->where('status', 'active'); }
+    public function isExpired(): bool
+{
+    return $this->end_date->isPast() || $this->status === 'expired';
+}
 
     public function getDaysRemainingAttribute(): int
     {

@@ -4,17 +4,19 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Support\Facades\DB;
 
 class SetInstitutionScope
 {
-    /**
-     * Handle an incoming request.
-     *
-     * @param  Closure(Request): (Response)  $next
-     */
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next)
     {
+        if (auth()->check()) {
+            $user = auth()->user();
+
+            DB::statement("SET app.institution_id = '{$user->institution_id}'");
+            DB::statement("SET app.user_id = '{$user->id}'");
+        }
+
         return $next($request);
     }
 }

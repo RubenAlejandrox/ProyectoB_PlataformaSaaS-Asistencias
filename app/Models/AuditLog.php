@@ -8,6 +8,10 @@ class AuditLog extends Model
 {
     use HasUuidKey;
 
+    // Forzar el nombre exacto de la tabla en PostgreSQL (Supabase)
+    protected $table = 'audit_log';
+
+    // Un log de auditoría no se actualiza, por lo que desactivamos la columna updated_at
     const UPDATED_AT = null;
 
     protected $fillable = [

@@ -1,22 +1,62 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\InstitutionController;
+use App\Http\Controllers\PlanController;
+use App\Http\Controllers\ClassroomController;
+use App\Http\Controllers\SessionController;
+use App\Http\Controllers\SessionKeyController;
+use App\Http\Controllers\InvitationCodeController;
+use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\JustificationController;
+use App\Http\Controllers\CycleController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\SubscriptionController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\AdminEditController;
 use Illuminate\Support\Facades\Route;
 
-/*
-|--------------------------------------------------------------------------
-| Rutas de la API (API Routes)
-|--------------------------------------------------------------------------
-| Estas rutas son cargadas por el RouteServiceProvider dentro de un grupo
-| al que se le asigna el grupo de middleware "api"
-|--------------------------------------------------------------------------
-*/
+// ── Public ────────────────────────────────────────────────────────────────────
+Route::post('/login', [AuthController::class, 'login']);
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
-Route::post('/login',  [AuthController::class, 'login']);
-Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
-
-// ── Protected routes (coming soon) ───────────────────────────────────────────
+// ── Auth only (no plan check needed) ─────────────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
-    // Dashboard, classrooms, sessions, etc.
+    Route::post('/logout', [AuthController::class, 'logout']);
+});
+
+// ── Protected (token + plan + audit) ─────────────────────────────────────────
+Route::middleware(['auth:sanctum', 'plan', 'auditoria'])->group(function () {
+
+    // Administrator
+    Route::middleware('role:Administrator')->group(function () {
+        Route::apiResource('institutions', InstitutionController::class);
+        Route::apiResource('plans', PlanController::class);
+        Route::get('subscriptions', [SubscriptionController::class, 'index']);
+        Route::post('subscriptions/upgrade', [SubscriptionController::class, 'upgrade']);
+        Route::get('payments', [PaymentController::class, 'index']);
+        Route::post('admin/corrections', [AdminEditController::class, 'correctAttendance']);
+    });
+
+    // Teacher
+    Route::middleware('role:Teacher')->group(function () {
+        Route::apiResource('classrooms', ClassroomController::class);
+        Route::apiResource('sessions', SessionController::class);
+        Route::post('classrooms/{classroom}/invitation-codes', [InvitationCodeController::class, 'store']);
+        Route::post('sessions/{session}/keys', [SessionKeyController::class, 'store']);
+        Route::post('cycles/{cycle}/close', [CycleController::class, 'close']);
+        Route::get('reports/matrix/{classroom}', [ReportController::class, 'matrix']);
+        Route::get('reports/monthly/{classroom}', [ReportController::class, 'monthly']);
+    });
+
+    // Student
+    Route::middleware('role:Student')->group(function () {
+        Route::post('attendances', [AttendanceController::class, 'register']);
+        Route::get('progress/{classroom}', [AttendanceController::class, 'progress']);
+        Route::get('portal/{classroom}', [AttendanceController::class, 'portal']);
+    });
+
+    // Teacher + Administrator
+    Route::middleware('role:Teacher,Administrator')->group(function () {
+        Route::apiResource('justifications', JustificationController::class);
+    });
 });

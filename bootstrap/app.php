@@ -13,7 +13,17 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        
+        // Global — se ejecuta en cada request que entra a la aplicación
+        $middleware->append(\App\Http\Middleware\SetInstitutionScope::class);
+
+        // Aliases — se usan por su nombre clave en los archivos de rutas (ej. 'role:Teacher')
+        $middleware->alias([
+            'role'      => \App\Http\Middleware\CheckRole::class,
+            'plan'      => \App\Http\Middleware\CheckPlanAccess::class,
+            'auditoria' => \App\Http\Middleware\LogAuditoria::class,
+        ]);
+        
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
