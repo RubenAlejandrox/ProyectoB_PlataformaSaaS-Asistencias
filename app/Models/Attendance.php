@@ -1,34 +1,17 @@
 <?php
-
 namespace App\Models;
 
+use App\Traits\HasUuidKey;
 use Illuminate\Database\Eloquent\Model;
 
 class Attendance extends Model
 {
-    protected $fillable = [
-        'session_id',
-        'student_id',
-        'status',
-    ];
+    use HasUuidKey;
 
-    public function session()
-    {
-        return $this->belongsTo(Session::class);
-    }
+    protected $fillable = ['session_id', 'student_id', 'status'];
 
-    public function student()
-    {
-        return $this->belongsTo(User::class, 'student_id');
-    }
-
-    public function justification()
-    {
-        return $this->hasOne(Justification::class);
-    }
-
-    public function isPresent(): bool
-    {
-        return $this->status === 'present';
-    }
+    public function session()       { return $this->belongsTo(Session::class); }
+    public function student()       { return $this->belongsTo(User::class, 'student_id'); }
+    public function justification() { return $this->hasOne(Justification::class); }
+    public function isPresent(): bool { return $this->status === 'present'; }
 }

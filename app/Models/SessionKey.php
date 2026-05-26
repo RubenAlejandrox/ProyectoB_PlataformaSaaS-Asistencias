@@ -1,34 +1,20 @@
 <?php
-
 namespace App\Models;
 
+use App\Traits\HasUuidKey;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SessionKey extends Model
 {
-    /**
-     * Atributos que se pueden asignar de forma masiva.
-     *
-     * @var array<int, string>
-     */
+    use HasUuidKey;
+
     protected $fillable = ['session_id', 'access_key', 'expires_at', 'is_active'];
 
-    /**
-     * Obtiene la sesión a la que pertenece esta clave de acceso.
-     * Relación inversa de uno a muchos (BelongsTo).
-     */
-    public function session(): BelongsTo
+    protected function casts(): array
     {
-        return $this->belongsTo(Session::class);
+        return ['expires_at' => 'datetime', 'is_active' => 'boolean'];
     }
 
-    /**
-     * Determina si la clave de sesión ya ha expirado.
-     * Compara la fecha actual con la fecha de expiración.
-     */
-    public function isExpired(): bool
-    {
-        return now()->gt($this->expires_at);
-    }
+    public function session() { return $this->belongsTo(Session::class); }
+    public function isExpired(): bool { return now()->gt($this->expires_at); }
 }

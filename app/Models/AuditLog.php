@@ -1,53 +1,30 @@
 <?php
-
 namespace App\Models;
 
+use App\Traits\HasUuidKey;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AuditLog extends Model
 {
-    /**
-     * Atributos que se pueden asignar de forma masiva.
-     *
-     * @var array<int, string>
-     */
-    protected $fillable = [
-        'user_id',
-        'entity',
-        'entity_id',
-        'action',
-        'old_value',
-        'new_value'
-    ];
+    use HasUuidKey;
 
-    /**
-     * Desactiva la columna updated_at.
-     * Este modelo solo permite inserciones (INSERT), no actualizaciones.
-     *
-     * @var string|null
-     */
     const UPDATED_AT = null;
 
-    /**
-     * El método de arranque (booted) del modelo.
-     * Protege la inmutabilidad de los registros bloqueando cambios y eliminaciones.
-     */
-    protected static function booted(): void
+    protected $fillable = [
+        'user_id', 'entity', 'entity_id',
+        'action', 'old_value', 'new_value',
+    ];
+
+    protected function casts(): array
     {
-        // Lanza una excepción si se intenta actualizar el registro
-        static::updating(fn() => throw new \Exception('AuditLog is immutable.'));
-        
-        // Lanza una excepción si se intenta eliminar el registro
-        static::deleting(fn() => throw new \Exception('AuditLog is immutable.'));
+        return ['old_value' => 'array', 'new_value' => 'array'];
     }
 
-    /**
-     * Obtiene el usuario que generó el registro de auditoría.
-     * Relación inversa de uno a muchos (BelongsTo).
-     */
-    public function user(): BelongsTo
+    public function user() { return $this->belongsTo(User::class); }
+
+    protected static function booted(): void
     {
-        return $this->belongsTo(User::class);
+        static::updating(fn() => throw new \Exception('AuditLog is immutable.'));
+        static::deleting(fn() => throw new \Exception('AuditLog is immutable.'));
     }
 }
