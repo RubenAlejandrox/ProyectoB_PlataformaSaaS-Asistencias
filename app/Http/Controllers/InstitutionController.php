@@ -1,51 +1,130 @@
 <?php
 
 namespace App\Http\Controllers;
-use App\Models\Institution; // ← agregar
 
-
+use App\Models\Institution;
+use App\Services\SupabaseStorageService;
 use Illuminate\Http\Request;
 
 class InstitutionController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+    public function __construct(
+        private SupabaseStorageService $storage
+    ) {}
+
+    // ── index ─────────────────────────────────────────────────────────────────
     public function index()
     {
-        return response()->json(Institution::all());
+        $institutions = Institution::withoutGlobalScopes()
+            ->withCount('classrooms')
+            ->orderBy('name')
+            ->paginate(15);
+
+        $stats = [
+            'total'    => Institution::withoutGlobalScopes()->count(),
+            'active'   => Institution::withoutGlobalScopes()->where('is_active', true)->count(),
+            'inactive' => Institution::withoutGlobalScopes()->where('is_active', false)->count(),
+            'classrooms' => \App\Models\Classroom::withoutGlobalScopes()->count(),
+        ];
+
+        return view('instituciones.index', compact('institutions', 'stats'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+    // ── store ─────────────────────────────────────────────────────────────────
     public function store(Request $request)
     {
-        $institution = Institution::create($request->only(['name', 'is_active']));
-        return response()->json($institution, 201);
+        $request->validate([
+            'name'   => 'required|string|max:255|unique:institutions,name',
+            'logo'   => 'nullable|image|mimes:png,jpg,jpeg|max:2048',
+        ], [
+            'name.unique' => 'Ya existe una institución con ese nombre.',
+            'logo.max'    => 'El logo no debe superar 2MB.',
+        ]);
+
+        $logoUrl = null;
+
+        if ($request->hasFile('logo')) {
+            $logoUrl = $this->storage->upload(
+                $request->file('logo'),
+                'institution-logos'
+            );
+
+            if (!$logoUrl) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['logo' => 'Error al subir el logo. Intenta de nuevo.']);
+            }
+        }
+
+        Institution::create([
+            'name'     => $request->name,
+            'logo_url' => $logoUrl,
+            'is_active' => true,
+        ]);
+
+        return back()->with('success', "Institución \"{$request->name}\" creada exitosamente.");
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    // ── update ────────────────────────────────────────────────────────────────
+    public function update(Request $request, Institution $institution)
     {
-        return response()->json([]);
+        $request->validate([
+            'name' => "required|string|max:255|unique:institutions,name,{$institution->id}",
+            'logo' => 'nullable|image|mimes:png,jpg,jpeg|max:2048',
+        ], [
+            'name.unique' => 'Ya existe una institución con ese nombre.',
+        ]);
+
+        $logoUrl = $institution->logo_url;
+
+        if ($request->hasFile('logo')) {
+            // Eliminar logo anterior si existe
+            if ($institution->logo_url) {
+                $this->storage->delete('institution-logos', $institution->logo_url);
+            }
+
+            $logoUrl = $this->storage->upload(
+                $request->file('logo'),
+                'institution-logos'
+            );
+
+            if (!$logoUrl) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['logo' => 'Error al subir el logo. Intenta de nuevo.']);
+            }
+        }
+
+        $institution->update([
+            'name'     => $request->name,
+            'logo_url' => $logoUrl,
+        ]);
+
+        return back()->with('success', "Institución \"{$request->name}\" actualizada.");
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    // ── toggleStatus ──────────────────────────────────────────────────────────
+    public function toggleStatus(Institution $institution)
     {
-        return response()->json([]);
-    }
+        // No desactivar si tiene suscriptores activos
+        if ($institution->is_active) {
+            $activeSubs = $institution->subscriptions()
+                ->where('status', 'active')
+                ->exists();
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        return response()->json([], 204);
+            if ($activeSubs) {
+                return back()->withErrors([
+                    'general' => "No se puede desactivar \"{$institution->name}\" porque tiene una suscripción activa."
+                ]);
+            }
+        }
+
+        $institution->update(['is_active' => !$institution->is_active]);
+
+        $msg = $institution->is_active
+            ? "Institución \"{$institution->name}\" reactivada."
+            : "Institución \"{$institution->name}\" desactivada.";
+
+        return back()->with('success', $msg);
     }
 }

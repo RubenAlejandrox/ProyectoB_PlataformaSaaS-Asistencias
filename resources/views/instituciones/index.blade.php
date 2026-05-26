@@ -31,7 +31,7 @@
 @section('content')
 <div class="main-content">
 
-    {{-- ===================== PAGE HEADER ===================== --}}
+    {{-- PAGE HEADER --}}
     <div class="page-header">
         <div class="header-content">
             <div class="header-text">
@@ -47,39 +47,53 @@
         </div>
     </div>
 
-    {{-- ===================== KPI CARDS ===================== --}}
+    {{-- SUCCESS / ERROR --}}
+    @if(session('success'))
+        <div class="alert-success" style="display:flex;align-items:center;gap:.6rem;background:#d1fae5;border:1px solid #6ee7b7;border-left:4px solid #28A745;border-radius:8px;padding:.75rem 1rem;margin-bottom:1.2rem;color:#065f46;">
+            <i class="fas fa-check-circle"></i>
+            <span>{{ session('success') }}</span>
+        </div>
+    @endif
+    @if($errors->has('general'))
+        <div class="alert-error" style="display:flex;align-items:center;gap:.6rem;background:#fee2e2;border:1px solid #fca5a5;border-left:4px solid #DC3545;border-radius:8px;padding:.75rem 1rem;margin-bottom:1.2rem;color:#991b1b;">
+            <i class="fas fa-exclamation-circle"></i>
+            <span>{{ $errors->first('general') }}</span>
+        </div>
+    @endif
+
+    {{-- KPI CARDS --}}
     <div class="kpi-grid">
         <div class="kpi-card">
             <div class="kpi-icon"><i class="fas fa-building"></i></div>
             <div class="kpi-content">
-                <span class="kpi-value">12</span>
+                <span class="kpi-value">{{ $stats['total'] }}</span>
                 <span class="kpi-label">Total instituciones</span>
             </div>
         </div>
         <div class="kpi-card kpi-card--success">
             <div class="kpi-icon"><i class="fas fa-check-circle"></i></div>
             <div class="kpi-content">
-                <span class="kpi-value">9</span>
+                <span class="kpi-value">{{ $stats['active'] }}</span>
                 <span class="kpi-label">Activas</span>
             </div>
         </div>
         <div class="kpi-card kpi-card--warning">
             <div class="kpi-icon"><i class="fas fa-pause-circle"></i></div>
             <div class="kpi-content">
-                <span class="kpi-value">3</span>
+                <span class="kpi-value">{{ $stats['inactive'] }}</span>
                 <span class="kpi-label">Inactivas</span>
             </div>
         </div>
         <div class="kpi-card">
             <div class="kpi-icon"><i class="fas fa-chalkboard"></i></div>
             <div class="kpi-content">
-                <span class="kpi-value">48</span>
+                <span class="kpi-value">{{ $stats['classrooms'] }}</span>
                 <span class="kpi-label">Aulas registradas</span>
             </div>
         </div>
     </div>
 
-    {{-- ===================== TABLA ===================== --}}
+    {{-- TABLA --}}
     <div class="card">
         <div class="card-header">
             <h3 class="card-title">
@@ -89,12 +103,14 @@
             <div class="card-actions">
                 <div class="search-bar">
                     <i class="fas fa-search search-icon"></i>
-                    <input type="text" class="search-input" placeholder="Buscar institución..." id="buscarInstitucion">
+                    <input type="text" class="search-input"
+                           placeholder="Buscar institución..."
+                           id="buscarInstitucion">
                 </div>
                 <select class="filter-select" id="filtroEstado">
                     <option value="">Todos los estados</option>
-                    <option value="activa">Activa</option>
-                    <option value="inactiva">Inactiva</option>
+                    <option value="1">Activa</option>
+                    <option value="0">Inactiva</option>
                 </select>
             </div>
         </div>
@@ -105,141 +121,104 @@
                         <tr>
                             <th>#</th>
                             <th>Institución</th>
-                            <th>Contacto</th>
-                            <th>Correo</th>
-                            <th>Teléfono</th>
                             <th>Aulas</th>
                             <th>Estado</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr data-estado="activa">
-                            <td>001</td>
+                        @forelse($institutions as $inst)
+                        <tr data-estado="{{ $inst->is_active ? '1' : '0' }}">
+                            <td>{{ str_pad($loop->index + 1, 3, '0', STR_PAD_LEFT) }}</td>
                             <td>
-                                <div class="inst-cell">
-                                    <div class="inst-icon"><i class="fas fa-university"></i></div>
+                                <div class="inst-cell {{ !$inst->is_active ? 'inst-cell--inactive' : '' }}">
+                                    <div class="inst-icon {{ !$inst->is_active ? 'inst-icon--inactive' : '' }}">
+                                        @if($inst->logo_url)
+                                            <img src="{{ $inst->logo_url }}"
+                                                 alt="{{ $inst->name }}"
+                                                 style="width:32px;height:32px;object-fit:cover;border-radius:4px;">
+                                        @else
+                                            <i class="fas fa-university"></i>
+                                        @endif
+                                    </div>
                                     <div>
-                                        <span class="inst-nombre">CBTIS 168</span>
-                                        <span class="inst-tipo">Pública</span>
+                                        <span class="inst-nombre">{{ $inst->name }}</span>
                                     </div>
                                 </div>
                             </td>
-                            <td>Lic. Juan Pérez</td>
-                            <td>jperez@cbtis168.edu.mx</td>
-                            <td>55 1234 5678</td>
-                            <td><span class="badge-num">12</span></td>
-                            <td><span class="status status-active">Activa</span></td>
+                            <td><span class="badge-num">{{ $inst->classrooms_count }}</span></td>
+                            <td>
+                                <span class="status {{ $inst->is_active ? 'status-active' : 'status-inactive' }}">
+                                    {{ $inst->is_active ? 'Activa' : 'Inactiva' }}
+                                </span>
+                            </td>
                             <td class="action-cell">
-                                <button class="action-btn" title="Ver detalle" onclick="abrirModal('modalDetalle')">
+                                {{-- Ver --}}
+                                <button class="action-btn" title="Ver detalle"
+                                    onclick="abrirDetalle(
+                                        '{{ $inst->id }}',
+                                        '{{ addslashes($inst->name) }}',
+                                        {{ $inst->classrooms_count }},
+                                        {{ $inst->is_active ? 'true' : 'false' }},
+                                        '{{ $inst->logo_url ?? '' }}'
+                                    )">
                                     <i class="fas fa-eye"></i>
                                 </button>
-                                <button class="action-btn" title="Editar" onclick="abrirModal('modalEditar')">
+
+                                {{-- Editar --}}
+                                @if($inst->is_active)
+                                <button class="action-btn" title="Editar"
+                                    onclick="abrirEditar(
+                                        '{{ $inst->id }}',
+                                        '{{ addslashes($inst->name) }}',
+                                        '{{ $inst->logo_url ?? '' }}'
+                                    )">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <button class="action-btn danger" title="Desactivar" onclick="confirmarDesactivar(1, 'CBTIS 168')">
-                                    <i class="fas fa-ban"></i>
-                                </button>
+                                @endif
+
+                                {{-- Toggle estado --}}
+                                <form method="POST"
+                                      action="{{ route('instituciones.toggle', $inst->id) }}"
+                                      style="display:inline"
+                                      id="toggleForm-{{ $inst->id }}">
+                                    @csrf
+                                    @method('PATCH')
+                                    <button type="button"
+                                            class="action-btn {{ $inst->is_active ? 'danger' : '' }}"
+                                            title="{{ $inst->is_active ? 'Desactivar' : 'Reactivar' }}"
+                                            onclick="confirmarToggle(
+                                                '{{ $inst->id }}',
+                                                '{{ addslashes($inst->name) }}',
+                                                {{ $inst->is_active ? 'true' : 'false' }}
+                                            )">
+                                        <i class="fas {{ $inst->is_active ? 'fa-ban' : 'fa-redo' }}"></i>
+                                    </button>
+                                </form>
                             </td>
                         </tr>
-                        <tr data-estado="activa">
-                            <td>002</td>
-                            <td>
-                                <div class="inst-cell">
-                                    <div class="inst-icon"><i class="fas fa-school"></i></div>
-                                    <div>
-                                        <span class="inst-nombre">Colegio Americano</span>
-                                        <span class="inst-tipo">Privada</span>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>Mtra. Laura Vega</td>
-                            <td>lvega@colamex.edu.mx</td>
-                            <td>55 9876 5432</td>
-                            <td><span class="badge-num">8</span></td>
-                            <td><span class="status status-active">Activa</span></td>
-                            <td class="action-cell">
-                                <button class="action-btn" title="Ver detalle" onclick="abrirModal('modalDetalle')">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <button class="action-btn" title="Editar" onclick="abrirModal('modalEditar')">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="action-btn danger" title="Desactivar" onclick="confirmarDesactivar(2, 'Colegio Americano')">
-                                    <i class="fas fa-ban"></i>
-                                </button>
+                        @empty
+                        <tr>
+                            <td colspan="5" style="text-align:center;padding:2rem;color:var(--text-secondary)">
+                                <i class="fas fa-building" style="font-size:2rem;margin-bottom:.5rem;display:block;"></i>
+                                No hay instituciones registradas aún.
                             </td>
                         </tr>
-                        <tr data-estado="activa">
-                            <td>003</td>
-                            <td>
-                                <div class="inst-cell">
-                                    <div class="inst-icon"><i class="fas fa-university"></i></div>
-                                    <div>
-                                        <span class="inst-nombre">CECyTE Plantel 5</span>
-                                        <span class="inst-tipo">Pública</span>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>Dr. Martín Flores</td>
-                            <td>mflores@cecyte.edu.mx</td>
-                            <td>55 5555 1234</td>
-                            <td><span class="badge-num">15</span></td>
-                            <td><span class="status status-active">Activa</span></td>
-                            <td class="action-cell">
-                                <button class="action-btn" title="Ver detalle" onclick="abrirModal('modalDetalle')">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <button class="action-btn" title="Editar" onclick="abrirModal('modalEditar')">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="action-btn danger" title="Desactivar" onclick="confirmarDesactivar(3, 'CECyTE Plantel 5')">
-                                    <i class="fas fa-ban"></i>
-                                </button>
-                            </td>
-                        </tr>
-                        <tr data-estado="inactiva">
-                            <td>004</td>
-                            <td>
-                                <div class="inst-cell inst-cell--inactive">
-                                    <div class="inst-icon inst-icon--inactive"><i class="fas fa-school"></i></div>
-                                    <div>
-                                        <span class="inst-nombre">Preparatoria Lázaro</span>
-                                        <span class="inst-tipo">Pública</span>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>Mtra. Ana Ríos</td>
-                            <td>arios@lazaro.edu.mx</td>
-                            <td>55 4444 8888</td>
-                            <td><span class="badge-num">6</span></td>
-                            <td><span class="status status-inactive">Inactiva</span></td>
-                            <td class="action-cell">
-                                <button class="action-btn" title="Ver detalle" onclick="abrirModal('modalDetalle')">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <button class="action-btn" title="Reactivar" onclick="confirmarReactivar(4, 'Preparatoria Lázaro')">
-                                    <i class="fas fa-redo"></i>
-                                </button>
-                            </td>
-                        </tr>
+                        @endforelse
                     </tbody>
                 </table>
             </div>
 
             {{-- Paginación --}}
-            <div class="pagination">
-                <button class="page-link disabled"><i class="fas fa-chevron-left"></i></button>
-                <button class="page-link active">1</button>
-                <button class="page-link">2</button>
-                <button class="page-link"><i class="fas fa-chevron-right"></i></button>
+            <div class="pagination" style="padding:1rem;">
+                {{ $institutions->links() }}
             </div>
         </div>
     </div>
 
 </div>
 
-{{-- ===================== MODAL: NUEVA INSTITUCIÓN ===================== --}}
+{{-- MODAL: NUEVA INSTITUCIÓN --}}
 <div class="modal-overlay" id="modalCrear">
     <div class="modal modal-md">
         <div class="modal-header">
@@ -251,54 +230,55 @@
                 <i class="fas fa-times"></i>
             </button>
         </div>
-        <div class="modal-body">
-            <div class="form-grid">
-                <div class="form-group form-group--full">
-                    <label class="form-label">Nombre de la institución <span class="required">*</span></label>
-                    <input type="text" class="form-input" placeholder="Ej. CBTIS 168">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Tipo <span class="required">*</span></label>
-                    <select class="form-input">
-                        <option value="">Selecciona...</option>
-                        <option>Pública</option>
-                        <option>Privada</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Nombre del contacto <span class="required">*</span></label>
-                    <input type="text" class="form-input" placeholder="Nombre completo">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Correo electrónico <span class="required">*</span></label>
-                    <input type="email" class="form-input" placeholder="correo@institucion.edu.mx">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Teléfono</label>
-                    <input type="tel" class="form-input" placeholder="55 0000 0000">
-                </div>
-                <div class="form-group form-group--full">
-                    <label class="form-label">Dirección</label>
-                    <input type="text" class="form-input" placeholder="Calle, número, colonia, ciudad">
+        <form method="POST" action="{{ route('instituciones.store') }}" enctype="multipart/form-data">
+            @csrf
+            <div class="modal-body">
+                @if($errors->has('name'))
+                    <div class="alert-error" style="margin-bottom:1rem;display:flex;gap:.5rem;align-items:center;background:#fee2e2;border-left:4px solid #DC3545;padding:.6rem 1rem;border-radius:6px;color:#991b1b;font-size:.9rem;">
+                        <i class="fas fa-exclamation-circle"></i>
+                        {{ $errors->first('name') }}
+                    </div>
+                @endif
+                <div class="form-grid">
+                    <div class="form-group form-group--full">
+                        <label class="form-label">Nombre de la institución <span class="required">*</span></label>
+                        <input type="text"
+                               name="name"
+                               class="form-input"
+                               placeholder="Ej. CBTIS 168"
+                               value="{{ old('name') }}"
+                               required>
+                    </div>
+                    <div class="form-group form-group--full">
+                        <label class="form-label">
+                            Logo
+                            <span style="font-size:.75rem;color:var(--text-secondary);font-weight:400;">(PNG/JPG · máx. 2MB)</span>
+                        </label>
+                        <input type="file"
+                               name="logo"
+                               class="form-input"
+                               accept=".png,.jpg,.jpeg"
+                               style="padding:.6rem;">
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-outline btn-md" onclick="cerrarModal('modalCrear')">Cancelar</button>
-            <button class="btn btn-primary btn-md">
-                <i class="fas fa-save"></i>
-                Guardar institución
-            </button>
-        </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline btn-md" onclick="cerrarModal('modalCrear')">Cancelar</button>
+                <button type="submit" class="btn btn-primary btn-md">
+                    <i class="fas fa-save"></i>
+                    Guardar institución
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
-{{-- ===================== MODAL: VER DETALLE ===================== --}}
+{{-- MODAL: VER DETALLE --}}
 <div class="modal-overlay" id="modalDetalle">
     <div class="modal modal-md">
         <div class="modal-header">
             <div>
-                <h3 class="modal-title">CBTIS 168</h3>
+                <h3 class="modal-title" id="detalleTitulo">—</h3>
                 <p class="modal-subtitle">Detalle de la institución</p>
             </div>
             <button class="modal-close" onclick="cerrarModal('modalDetalle')">
@@ -307,100 +287,75 @@
         </div>
         <div class="modal-body">
             <div class="detalle-grid">
-                <div class="detalle-item">
-                    <span class="detalle-label">Tipo</span>
-                    <span class="detalle-value">Pública</span>
+                <div class="detalle-item" id="detalleLogoWrap" style="display:none;">
+                    <span class="detalle-label">Logo</span>
+                    <img id="detalleLogo" src="" alt="Logo"
+                         style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;">
                 </div>
                 <div class="detalle-item">
                     <span class="detalle-label">Estado</span>
-                    <span class="status status-active">Activa</span>
-                </div>
-                <div class="detalle-item">
-                    <span class="detalle-label">Contacto</span>
-                    <span class="detalle-value">Lic. Juan Pérez</span>
-                </div>
-                <div class="detalle-item">
-                    <span class="detalle-label">Correo</span>
-                    <span class="detalle-value">jperez@cbtis168.edu.mx</span>
-                </div>
-                <div class="detalle-item">
-                    <span class="detalle-label">Teléfono</span>
-                    <span class="detalle-value">55 1234 5678</span>
+                    <span class="status" id="detalleEstado">—</span>
                 </div>
                 <div class="detalle-item">
                     <span class="detalle-label">Aulas registradas</span>
-                    <span class="detalle-value">12</span>
-                </div>
-                <div class="detalle-item detalle-item--full">
-                    <span class="detalle-label">Dirección</span>
-                    <span class="detalle-value">Av. Insurgentes 456, Col. Centro, CDMX</span>
+                    <span class="detalle-value" id="detalleAulas">—</span>
                 </div>
             </div>
         </div>
         <div class="modal-footer">
             <button class="btn btn-outline btn-md" onclick="cerrarModal('modalDetalle')">Cerrar</button>
-            <button class="btn btn-primary btn-md" onclick="cerrarModal('modalDetalle'); abrirModal('modalEditar')">
-                <i class="fas fa-edit"></i>
-                Editar
-            </button>
         </div>
     </div>
 </div>
 
-{{-- ===================== MODAL: EDITAR ===================== --}}
+{{-- MODAL: EDITAR --}}
 <div class="modal-overlay" id="modalEditar">
     <div class="modal modal-md">
         <div class="modal-header">
             <div>
                 <h3 class="modal-title">Editar Institución</h3>
-                <p class="modal-subtitle">CBTIS 168</p>
+                <p class="modal-subtitle" id="editarSubtitulo">—</p>
             </div>
             <button class="modal-close" onclick="cerrarModal('modalEditar')">
                 <i class="fas fa-times"></i>
             </button>
         </div>
-        <div class="modal-body">
-            <div class="form-grid">
-                <div class="form-group form-group--full">
-                    <label class="form-label">Nombre de la institución <span class="required">*</span></label>
-                    <input type="text" class="form-input" value="CBTIS 168">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Tipo <span class="required">*</span></label>
-                    <select class="form-input">
-                        <option selected>Pública</option>
-                        <option>Privada</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Nombre del contacto</label>
-                    <input type="text" class="form-input" value="Lic. Juan Pérez">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Correo electrónico</label>
-                    <input type="email" class="form-input" value="jperez@cbtis168.edu.mx">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Teléfono</label>
-                    <input type="tel" class="form-input" value="55 1234 5678">
-                </div>
-                <div class="form-group form-group--full">
-                    <label class="form-label">Dirección</label>
-                    <input type="text" class="form-input" value="Av. Insurgentes 456, Col. Centro, CDMX">
+        <form method="POST" id="formEditar" enctype="multipart/form-data">
+            @csrf
+            @method('PUT')
+            <div class="modal-body">
+                <div class="form-grid">
+                    <div class="form-group form-group--full">
+                        <label class="form-label">Nombre <span class="required">*</span></label>
+                        <input type="text" name="name" id="editarNombre" class="form-input" required>
+                    </div>
+                    <div class="form-group form-group--full">
+                        <label class="form-label">
+                            Nuevo logo
+                            <span style="font-size:.75rem;color:var(--text-secondary);font-weight:400;">(opcional · PNG/JPG · máx. 2MB)</span>
+                        </label>
+                        <input type="file" name="logo" class="form-input"
+                               accept=".png,.jpg,.jpeg" style="padding:.6rem;">
+                        <div id="editarLogoActual" style="margin-top:.5rem;display:none;">
+                            <img id="editarLogoImg" src="" alt="Logo actual"
+                                 style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;">
+                            <span style="font-size:.8rem;color:var(--text-secondary);margin-left:.5rem;">Logo actual</span>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-outline btn-md" onclick="cerrarModal('modalEditar')">Cancelar</button>
-            <button class="btn btn-primary btn-md">
-                <i class="fas fa-save"></i>
-                Guardar cambios
-            </button>
-        </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline btn-md" onclick="cerrarModal('modalEditar')">Cancelar</button>
+                <button type="submit" class="btn btn-primary btn-md">
+                    <i class="fas fa-save"></i>
+                    Guardar cambios
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
-{{-- ===================== MODAL: CONFIRMAR ACCIÓN ===================== --}}
+{{-- MODAL: CONFIRMAR TOGGLE --}}
 <div class="modal-overlay" id="modalConfirmar">
     <div class="modal modal-sm">
         <div class="modal-header">
@@ -417,19 +372,85 @@
         </div>
         <div class="modal-footer">
             <button class="btn btn-outline btn-md" onclick="cerrarModal('modalConfirmar')">Cancelar</button>
-            <button class="btn btn-danger btn-md" id="confirmarBtn">Confirmar</button>
+            <button class="btn btn-danger btn-md" id="confirmarBtn" onclick="ejecutarToggle()">Confirmar</button>
         </div>
     </div>
 </div>
 
 @push('scripts')
 <script>
-    // ==================== BÚSQUEDA Y FILTRO ====================
+    let toggleTargetId = null;
+
+    // ── Modales ──────────────────────────────────────────────────────────────
+    function abrirModal(id) { document.getElementById(id).classList.add('active'); }
+    function cerrarModal(id){ document.getElementById(id).classList.remove('active'); }
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape')
+            ['modalCrear','modalDetalle','modalEditar','modalConfirmar'].forEach(cerrarModal);
+    });
+
+    // ── Detalle ──────────────────────────────────────────────────────────────
+    function abrirDetalle(id, nombre, aulas, activa, logo) {
+        document.getElementById('detalleTitulo').textContent = nombre;
+        document.getElementById('detalleAulas').textContent  = aulas;
+        const estadoEl = document.getElementById('detalleEstado');
+        estadoEl.textContent  = activa ? 'Activa' : 'Inactiva';
+        estadoEl.className    = 'status ' + (activa ? 'status-active' : 'status-inactive');
+        const logoWrap = document.getElementById('detalleLogoWrap');
+        if (logo) {
+            document.getElementById('detalleLogo').src = logo;
+            logoWrap.style.display = 'block';
+        } else {
+            logoWrap.style.display = 'none';
+        }
+        abrirModal('modalDetalle');
+    }
+
+    // ── Editar ───────────────────────────────────────────────────────────────
+    function abrirEditar(id, nombre, logo) {
+        document.getElementById('editarSubtitulo').textContent = nombre;
+        document.getElementById('editarNombre').value          = nombre;
+        document.getElementById('formEditar').action =
+            `/instituciones/${id}`;
+        const logoWrap = document.getElementById('editarLogoActual');
+        if (logo) {
+            document.getElementById('editarLogoImg').src = logo;
+            logoWrap.style.display = 'flex';
+            logoWrap.style.alignItems = 'center';
+        } else {
+            logoWrap.style.display = 'none';
+        }
+        abrirModal('modalEditar');
+    }
+
+    // ── Toggle estado ────────────────────────────────────────────────────────
+    function confirmarToggle(id, nombre, activa) {
+        toggleTargetId = id;
+        const accion   = activa ? 'Desactivar' : 'Reactivar';
+        document.getElementById('confirmarTitulo').textContent    = `${accion} institución`;
+        document.getElementById('confirmarSubtitulo').textContent = activa
+            ? 'Las aulas activas quedarán suspendidas'
+            : 'Se restaurará el acceso a sus aulas';
+        document.getElementById('confirmarMensaje').textContent   =
+            `¿${accion} la institución "${nombre}"?`;
+        const btn = document.getElementById('confirmarBtn');
+        btn.className   = activa ? 'btn btn-danger btn-md' : 'btn btn-primary btn-md';
+        btn.textContent = accion;
+        abrirModal('modalConfirmar');
+    }
+
+    function ejecutarToggle() {
+        if (toggleTargetId) {
+            document.getElementById(`toggleForm-${toggleTargetId}`).submit();
+        }
+    }
+
+    // ── Búsqueda y filtro ────────────────────────────────────────────────────
     function filtrar() {
         const texto  = document.getElementById('buscarInstitucion').value.toLowerCase();
         const estado = document.getElementById('filtroEstado').value;
         document.querySelectorAll('#tablaInstituciones tbody tr').forEach(tr => {
-            const nombre  = tr.querySelector('.inst-nombre').textContent.toLowerCase();
+            const nombre  = tr.querySelector('.inst-nombre')?.textContent.toLowerCase() ?? '';
             const trEst   = tr.dataset.estado;
             const muestra = (!texto || nombre.includes(texto)) && (!estado || trEst === estado);
             tr.style.display = muestra ? '' : 'none';
@@ -438,29 +459,10 @@
     document.getElementById('buscarInstitucion').addEventListener('input', filtrar);
     document.getElementById('filtroEstado').addEventListener('change', filtrar);
 
-    // ==================== MODALES ====================
-    function abrirModal(id) { document.getElementById(id).classList.add('active'); }
-    function cerrarModal(id) { document.getElementById(id).classList.remove('active'); }
-
-    function confirmarDesactivar(id, nombre) {
-        document.getElementById('confirmarTitulo').textContent   = 'Desactivar institución';
-        document.getElementById('confirmarSubtitulo').textContent = 'Las aulas activas quedarán suspendidas';
-        document.getElementById('confirmarMensaje').textContent  = `¿Desactivar la institución "${nombre}"? Los docentes y alumnos vinculados no podrán acceder.`;
-        abrirModal('modalConfirmar');
-    }
-
-    function confirmarReactivar(id, nombre) {
-        document.getElementById('confirmarTitulo').textContent   = 'Reactivar institución';
-        document.getElementById('confirmarSubtitulo').textContent = 'Se restaurará el acceso a sus aulas';
-        document.getElementById('confirmarMensaje').textContent  = `¿Reactivar la institución "${nombre}"?`;
-        document.getElementById('confirmarBtn').className        = 'btn btn-primary btn-md';
-        document.getElementById('confirmarBtn').textContent      = 'Reactivar';
-        abrirModal('modalConfirmar');
-    }
-
-    document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') ['modalCrear','modalDetalle','modalEditar','modalConfirmar'].forEach(cerrarModal);
-    });
+    // ── Abrir modal crear si hay errores de validación ───────────────────────
+    @if($errors->hasAny(['name', 'logo']))
+        document.addEventListener('DOMContentLoaded', () => abrirModal('modalCrear'));
+    @endif
 </script>
 @endpush
 

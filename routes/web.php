@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;   
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\InstitutionController;
 
 use Illuminate\Support\Facades\Route;
 
@@ -38,10 +39,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index']);
 
     // Módulos Administrativos
-    Route::get('/instituciones', function () {
-        return view('instituciones.index');
-    })->name('instituciones.index');
+    Route::get('/instituciones',                        [InstitutionController::class, 'index'])->name('instituciones.index');
+    Route::post('/instituciones',                       [InstitutionController::class, 'store'])->name('instituciones.store');
+    Route::put('/instituciones/{institution}',          [InstitutionController::class, 'update'])->name('instituciones.update');
+    Route::patch('/instituciones/{institution}/toggle', [InstitutionController::class, 'toggleStatus'])->name('instituciones.toggle');
 
+    // Membresías y Edición Administrativa
     Route::get('/membresias', function () {
         return view('membresias.index');
     })->name('membresias.index');
