@@ -12,8 +12,9 @@ trait HasInstitutionScope
             if (app()->runningInConsole()) return;  // ← agregar
             if (!auth()->check()) return;           // ← agregar
             
+            // ✅ Usar $query->getModel()->getTable() en lugar de static::getTable()
             $query->where(
-                static::getTable() . '.institution_id',
+                $query->getModel()->getTable() . '.institution_id',
                 auth()->user()->institution_id
             );
         });

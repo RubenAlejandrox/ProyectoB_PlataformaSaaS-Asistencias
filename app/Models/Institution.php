@@ -2,12 +2,12 @@
 namespace App\Models;
 
 use App\Traits\HasUuidKey;
-use App\Traits\HasInstitutionScope;
+
 use Illuminate\Database\Eloquent\Model;
 
 class Institution extends Model
 {
-    use HasUuidKey, HasInstitutionScope;
+    use HasUuidKey;
 
     protected $fillable = ['name', 'logo_url', 'is_active'];
 
