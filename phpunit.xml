@@ -23,7 +23,15 @@
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
 
+<!-- ══ BD EXCLUSIVA TESTING — NO TOCAR .env de desarrollo ══ -->
         <env name="DB_CONNECTION" value="pgsql"/>
+        <env name="DB_HOST"        value="db.fdxializioqqejwwyhnd.supabase.co"/>
+        <env name="DB_PORT"        value="5432"/>
+        <env name="DB_DATABASE"    value="postgres"/>
+        <env name="DB_USERNAME"    value="postgres"/>
+        <env name="DB_PASSWORD"    value="GamaSolu2026$+"/>
+        <env name="DB_SSLMODE"     value="require"/>
+
         <env name="DB_URL" value=""/>
 
         <env name="BROADCAST_CONNECTION" value="null"/>

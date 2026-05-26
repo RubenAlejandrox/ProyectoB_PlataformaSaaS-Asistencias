@@ -21,7 +21,8 @@ class InstitutionController extends Controller
      */
     public function store(Request $request)
     {
-        return response()->json([], 201);
+        $institution = Institution::create($request->only(['name', 'is_active']));
+        return response()->json($institution, 201);
     }
 
     /**
