@@ -14,7 +14,7 @@ return new class extends Migration
     {
         Schema::create('session_keys', function (Blueprint $table) {
             $table->uuid('id')->primary()->default(DB::raw('gen_random_uuid()'));
-            $table->foreignUuid('session_id')->constrained()->cascadeOnDelete();
+            $table->foreignUuid('session_id')->constrained('class_sessions')->cascadeOnDelete();
             $table->string('access_key', 8)->unique();
             $table->timestamp('expires_at');
             $table->boolean('is_active')->default(true);

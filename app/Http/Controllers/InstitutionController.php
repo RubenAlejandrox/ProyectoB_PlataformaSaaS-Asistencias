@@ -21,9 +21,9 @@ class InstitutionController extends Controller
             ->paginate(15);
 
         $stats = [
-            'total'    => Institution::withoutGlobalScopes()->count(),
-            'active'   => Institution::withoutGlobalScopes()->where('is_active', true)->count(),
-            'inactive' => Institution::withoutGlobalScopes()->where('is_active', false)->count(),
+            'total'      => Institution::withoutGlobalScopes()->count(),
+            'active'     => Institution::withoutGlobalScopes()->where('is_active', true)->count(),
+            'inactive'   => Institution::withoutGlobalScopes()->where('is_active', false)->count(),
             'classrooms' => \App\Models\Classroom::withoutGlobalScopes()->count(),
         ];
 
@@ -34,8 +34,8 @@ class InstitutionController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name'   => 'required|string|max:255|unique:institutions,name',
-            'logo'   => 'nullable|image|mimes:png,jpg,jpeg|max:2048',
+            'name' => 'required|string|max:255|unique:institutions,name',
+            'logo' => 'nullable|image|mimes:png,jpg,jpeg|max:2048',
         ], [
             'name.unique' => 'Ya existe una institución con ese nombre.',
             'logo.max'    => 'El logo no debe superar 2MB.',
@@ -57,8 +57,8 @@ class InstitutionController extends Controller
         }
 
         Institution::create([
-            'name'     => $request->name,
-            'logo_url' => $logoUrl,
+            'name'      => $request->name,
+            'logo_url'  => $logoUrl,
             'is_active' => true,
         ]);
 
@@ -73,6 +73,7 @@ class InstitutionController extends Controller
             'logo' => 'nullable|image|mimes:png,jpg,jpeg|max:2048',
         ], [
             'name.unique' => 'Ya existe una institución con ese nombre.',
+            'logo.max'    => 'El logo no debe superar 2MB.',
         ]);
 
         $logoUrl = $institution->logo_url;
@@ -80,7 +81,12 @@ class InstitutionController extends Controller
         if ($request->hasFile('logo')) {
             // Eliminar logo anterior si existe
             if ($institution->logo_url) {
-                $this->storage->delete('institution-logos', $institution->logo_url);
+                $oldPath = str_replace(
+                    config('services.supabase.url') . '/storage/v1/object/public/institution-logos/',
+                    '',
+                    $institution->logo_url
+                );
+                $this->storage->delete('institution-logos', $oldPath);
             }
 
             $logoUrl = $this->storage->upload(
@@ -106,7 +112,6 @@ class InstitutionController extends Controller
     // ── toggleStatus ──────────────────────────────────────────────────────────
     public function toggleStatus(Institution $institution)
     {
-        // No desactivar si tiene suscriptores activos
         if ($institution->is_active) {
             $activeSubs = $institution->subscriptions()
                 ->where('status', 'active')

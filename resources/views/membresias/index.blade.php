@@ -31,7 +31,7 @@
 @section('content')
 <div class="main-content">
 
-    {{-- ===================== PAGE HEADER ===================== --}}
+    {{-- PAGE HEADER --}}
     <div class="page-header">
         <div class="header-content">
             <div class="header-text">
@@ -41,7 +41,7 @@
             <div class="header-actions">
                 <button class="btn btn-outline btn-md" onclick="abrirModal('modalPlanes')">
                     <i class="fas fa-tags"></i>
-                    Gestionar planes
+                    Ver planes
                 </button>
                 <button class="btn btn-primary btn-md" onclick="abrirModal('modalAsignar')">
                     <i class="fas fa-plus"></i>
@@ -51,60 +51,75 @@
         </div>
     </div>
 
-    {{-- ===================== KPI CARDS ===================== --}}
+    {{-- SUCCESS / ERROR --}}
+    @if(session('success'))
+        <div style="display:flex;align-items:center;gap:.6rem;background:#d1fae5;border-left:4px solid #28A745;border-radius:8px;padding:.75rem 1rem;margin-bottom:1.2rem;color:#065f46;">
+            <i class="fas fa-check-circle"></i><span>{{ session('success') }}</span>
+        </div>
+    @endif
+    @if(session('info'))
+        <div style="display:flex;align-items:center;gap:.6rem;background:#dbeafe;border-left:4px solid #3b82f6;border-radius:8px;padding:.75rem 1rem;margin-bottom:1.2rem;color:#1e40af;">
+            <i class="fas fa-info-circle"></i><span>{{ session('info') }}</span>
+        </div>
+    @endif
+    @if($errors->has('general'))
+        <div style="display:flex;align-items:center;gap:.6rem;background:#fee2e2;border-left:4px solid #DC3545;border-radius:8px;padding:.75rem 1rem;margin-bottom:1.2rem;color:#991b1b;">
+            <i class="fas fa-exclamation-circle"></i><span>{{ $errors->first('general') }}</span>
+        </div>
+    @endif
+
+    {{-- KPI CARDS --}}
     <div class="kpi-grid">
         <div class="kpi-card kpi-card--success">
             <div class="kpi-icon"><i class="fas fa-check-circle"></i></div>
             <div class="kpi-content">
-                <span class="kpi-value">9</span>
+                <span class="kpi-value">{{ $stats['active'] }}</span>
                 <span class="kpi-label">Membresías activas</span>
             </div>
         </div>
         <div class="kpi-card kpi-card--warning">
             <div class="kpi-icon"><i class="fas fa-exclamation-circle"></i></div>
             <div class="kpi-content">
-                <span class="kpi-value">2</span>
+                <span class="kpi-value">{{ $stats['expiring_soon'] }}</span>
                 <span class="kpi-label">Por vencer (30 días)</span>
             </div>
         </div>
         <div class="kpi-card kpi-card--danger">
             <div class="kpi-icon"><i class="fas fa-times-circle"></i></div>
             <div class="kpi-content">
-                <span class="kpi-value">1</span>
+                <span class="kpi-value">{{ $stats['expired'] }}</span>
                 <span class="kpi-label">Expiradas</span>
             </div>
         </div>
         <div class="kpi-card">
             <div class="kpi-icon"><i class="fas fa-tags"></i></div>
             <div class="kpi-content">
-                <span class="kpi-value">3</span>
+                <span class="kpi-value">{{ $stats['total_plans'] }}</span>
                 <span class="kpi-label">Planes disponibles</span>
             </div>
         </div>
     </div>
 
-    {{-- ===================== TABS ===================== --}}
+    {{-- TABS --}}
     <div class="mod-tabs">
         <button class="mod-tab active" data-tab="todas">
-            <i class="fas fa-list"></i>
-            Todas
+            <i class="fas fa-list"></i> Todas
         </button>
-        <button class="mod-tab" data-tab="activa">
-            <i class="fas fa-check-circle"></i>
-            Activas
+        <button class="mod-tab" data-tab="active">
+            <i class="fas fa-check-circle"></i> Activas
         </button>
-        <button class="mod-tab" data-tab="por-vencer">
-            <i class="fas fa-clock"></i>
-            Por vencer
-            <span class="tab-badge">2</span>
+        <button class="mod-tab" data-tab="expiring">
+            <i class="fas fa-clock"></i> Por vencer
+            @if($stats['expiring_soon'] > 0)
+                <span class="tab-badge">{{ $stats['expiring_soon'] }}</span>
+            @endif
         </button>
-        <button class="mod-tab" data-tab="expirada">
-            <i class="fas fa-times-circle"></i>
-            Expiradas
+        <button class="mod-tab" data-tab="expired">
+            <i class="fas fa-times-circle"></i> Expiradas
         </button>
     </div>
 
-    {{-- ===================== TABLA ===================== --}}
+    {{-- TABLA --}}
     <div class="card">
         <div class="card-header">
             <h3 class="card-title">
@@ -114,13 +129,15 @@
             <div class="card-actions">
                 <div class="search-bar">
                     <i class="fas fa-search search-icon"></i>
-                    <input type="text" class="search-input" placeholder="Buscar institución..." id="buscarMembresia">
+                    <input type="text" class="search-input"
+                           placeholder="Buscar institución..."
+                           id="buscarMembresia">
                 </div>
                 <select class="filter-select" id="filtroPlan">
                     <option value="">Todos los planes</option>
-                    <option value="Básico">Básico</option>
-                    <option value="Estándar">Estándar</option>
-                    <option value="Premium">Premium</option>
+                    @foreach($plans as $plan)
+                        <option value="{{ $plan->name }}">{{ $plan->name }}</option>
+                    @endforeach
                 </select>
             </div>
         </div>
@@ -133,101 +150,89 @@
                             <th>Plan</th>
                             <th>Inicio</th>
                             <th>Vencimiento</th>
-                            <th>Aulas permitidas</th>
-                            <th>Docentes permitidos</th>
+                            <th>Máx. Alumnos</th>
+                            <th>Máx. Aulas</th>
                             <th>Estado</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr data-tab="activa">
-                            <td>
-                                <div class="inst-cell">
-                                    <div class="inst-icon"><i class="fas fa-university"></i></div>
-                                    <span class="inst-nombre">CBTIS 168</span>
-                                </div>
-                            </td>
-                            <td><span class="plan-badge plan-premium">Premium</span></td>
-                            <td>01/01/2026</td>
-                            <td>31/12/2026</td>
-                            <td>Ilimitadas</td>
-                            <td>Ilimitados</td>
-                            <td><span class="status status-active">Activa</span></td>
-                            <td class="action-cell">
-                                <button class="action-btn" title="Ver detalle" onclick="abrirModal('modalDetalle')">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <button class="action-btn" title="Renovar" onclick="abrirModal('modalRenovar')">
-                                    <i class="fas fa-redo"></i>
-                                </button>
-                            </td>
-                        </tr>
-                        <tr data-tab="activa">
-                            <td>
-                                <div class="inst-cell">
-                                    <div class="inst-icon"><i class="fas fa-school"></i></div>
-                                    <span class="inst-nombre">Colegio Americano</span>
-                                </div>
-                            </td>
-                            <td><span class="plan-badge plan-estandar">Estándar</span></td>
-                            <td>01/03/2026</td>
-                            <td>28/02/2027</td>
-                            <td>20 aulas</td>
-                            <td>10 docentes</td>
-                            <td><span class="status status-active">Activa</span></td>
-                            <td class="action-cell">
-                                <button class="action-btn" title="Ver detalle" onclick="abrirModal('modalDetalle')">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <button class="action-btn" title="Renovar" onclick="abrirModal('modalRenovar')">
-                                    <i class="fas fa-redo"></i>
-                                </button>
-                            </td>
-                        </tr>
-                        <tr data-tab="por-vencer">
-                            <td>
-                                <div class="inst-cell">
-                                    <div class="inst-icon"><i class="fas fa-university"></i></div>
-                                    <span class="inst-nombre">CECyTE Plantel 5</span>
-                                </div>
-                            </td>
-                            <td><span class="plan-badge plan-basico">Básico</span></td>
-                            <td>01/06/2025</td>
-                            <td class="fecha-alerta">25/05/2026</td>
-                            <td>5 aulas</td>
-                            <td>3 docentes</td>
-                            <td><span class="status status-warning">Por vencer</span></td>
-                            <td class="action-cell">
-                                <button class="action-btn" title="Ver detalle" onclick="abrirModal('modalDetalle')">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <button class="action-btn warn" title="Renovar urgente" onclick="abrirModal('modalRenovar')">
-                                    <i class="fas fa-redo"></i>
-                                </button>
-                            </td>
-                        </tr>
-                        <tr data-tab="expirada">
-                            <td>
-                                <div class="inst-cell inst-cell--inactive">
-                                    <div class="inst-icon inst-icon--inactive"><i class="fas fa-school"></i></div>
-                                    <span class="inst-nombre">Preparatoria Lázaro</span>
-                                </div>
-                            </td>
-                            <td><span class="plan-badge plan-basico">Básico</span></td>
-                            <td>01/04/2025</td>
-                            <td class="fecha-vencida">30/03/2026</td>
-                            <td>5 aulas</td>
-                            <td>3 docentes</td>
-                            <td><span class="status status-expired">Expirada</span></td>
-                            <td class="action-cell">
-                                <button class="action-btn" title="Ver detalle" onclick="abrirModal('modalDetalle')">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <button class="action-btn" title="Renovar" onclick="abrirModal('modalRenovar')">
-                                    <i class="fas fa-redo"></i>
-                                </button>
-                            </td>
-                        </tr>
+                        @forelse($subscriptions as $sub)
+                            @php
+                                $daysLeft  = now()->diffInDays($sub->end_date, false);
+                                $tabStatus = match(true) {
+                                    $sub->status === 'active' && $daysLeft > 30  => 'active',
+                                    $sub->status === 'active' && $daysLeft <= 30 => 'expiring',
+                                    default                                       => 'expired',
+                                };
+                            @endphp
+                            <tr data-tab="{{ $tabStatus }}" data-plan="{{ $sub->plan->name }}">
+                                <td>
+                                    <div class="inst-cell {{ $tabStatus === 'expired' ? 'inst-cell--inactive' : '' }}">
+                                        <div class="inst-icon {{ $tabStatus === 'expired' ? 'inst-icon--inactive' : '' }}">
+                                            @if($sub->institution->logo_url)
+                                                <img src="{{ $sub->institution->logo_url }}"
+                                                     style="width:28px;height:28px;object-fit:cover;border-radius:4px;">
+                                            @else
+                                                <i class="fas fa-university"></i>
+                                            @endif
+                                        </div>
+                                        <span class="inst-nombre">{{ $sub->institution->name }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="plan-badge plan-{{ strtolower($sub->plan->name) }}">
+                                        {{ $sub->plan->name }}
+                                    </span>
+                                </td>
+                                <td>{{ \Carbon\Carbon::parse($sub->start_date)->format('d/m/Y') }}</td>
+                                <td class="{{ $tabStatus === 'expiring' ? 'fecha-alerta' : ($tabStatus === 'expired' ? 'fecha-vencida' : '') }}">
+                                    {{ \Carbon\Carbon::parse($sub->end_date)->format('d/m/Y') }}
+                                    @if($tabStatus === 'expiring')
+                                        <span style="font-size:.75rem;color:#92400e;display:block;">
+                                            {{ $daysLeft }} días restantes
+                                        </span>
+                                    @endif
+                                </td>
+                                <td>{{ $sub->plan->max_students }}</td>
+                                <td>{{ $sub->plan->max_classrooms }}</td>
+                                <td>
+                                    @if($tabStatus === 'active')
+                                        <span class="status status-active">Activa</span>
+                                    @elseif($tabStatus === 'expiring')
+                                        <span class="status status-warning">Por vencer</span>
+                                    @else
+                                        <span class="status status-expired">Expirada</span>
+                                    @endif
+                                </td>
+                                <td class="action-cell">
+                                    <button class="action-btn" title="Ver detalle"
+                                        onclick="abrirDetalle(
+                                            '{{ addslashes($sub->institution->name) }}',
+                                            '{{ $sub->plan->name }}',
+                                            '{{ \Carbon\Carbon::parse($sub->start_date)->format('d/m/Y') }}',
+                                            '{{ \Carbon\Carbon::parse($sub->end_date)->format('d/m/Y') }}',
+                                            {{ $sub->plan->max_students }},
+                                            {{ $sub->plan->max_classrooms }},
+                                            '{{ $tabStatus }}'
+                                        )">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button class="action-btn {{ $tabStatus === 'expiring' ? 'warn' : '' }}"
+                                            title="Renovar con PayPal"
+                                            onclick="abrirRenovar('{{ $sub->institution_id }}', '{{ $sub->plan_id }}', '{{ addslashes($sub->institution->name) }}', '{{ $sub->plan->name }}')">
+                                        <i class="fas fa-redo"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="8" style="text-align:center;padding:2rem;color:var(--text-secondary)">
+                                    <i class="fas fa-id-card" style="font-size:2rem;display:block;margin-bottom:.5rem;"></i>
+                                    No hay membresías registradas.
+                                </td>
+                            </tr>
+                        @endforelse
                     </tbody>
                 </table>
             </div>
@@ -236,54 +241,37 @@
 
 </div>
 
-{{-- ===================== MODAL: PLANES ===================== --}}
+{{-- MODAL: PLANES --}}
 <div class="modal-overlay" id="modalPlanes">
     <div class="modal modal-lg">
         <div class="modal-header">
             <div>
-                <h3 class="modal-title">Gestión de Planes</h3>
-                <p class="modal-subtitle">Crea y edita los planes disponibles</p>
+                <h3 class="modal-title">Planes disponibles</h3>
+                <p class="modal-subtitle">Catálogo de planes SaaS</p>
             </div>
             <button class="modal-close" onclick="cerrarModal('modalPlanes')"><i class="fas fa-times"></i></button>
         </div>
         <div class="modal-body">
             <div class="planes-grid">
-                <div class="plan-card plan-card--basico">
+                @foreach($plans as $plan)
+                <div class="plan-card plan-card--{{ strtolower($plan->name) }}">
                     <div class="plan-header">
-                        <span class="plan-nombre">Básico</span>
-                        <button class="plan-edit-btn" title="Editar"><i class="fas fa-edit"></i></button>
+                        <span class="plan-nombre">{{ $plan->name }}</span>
+                        @if(!$plan->isFree())
+                            <span style="font-size:1.1rem;font-weight:700;color:var(--corp-orange)">
+                                ${{ number_format($plan->price, 0) }}/mes
+                            </span>
+                        @else
+                            <span style="font-size:1.1rem;font-weight:700;color:#28A745">Gratis</span>
+                        @endif
                     </div>
                     <ul class="plan-features">
-                        <li><i class="fas fa-check"></i> 5 aulas</li>
-                        <li><i class="fas fa-check"></i> 3 docentes</li>
-                        <li><i class="fas fa-check"></i> Reportes básicos</li>
-                        <li class="feat-no"><i class="fas fa-times"></i> Exportación PDF</li>
+                        <li><i class="fas fa-check"></i> {{ $plan->max_students }} alumnos máx.</li>
+                        <li><i class="fas fa-check"></i> {{ $plan->max_classrooms }} aulas máx.</li>
+                        <li><i class="fas fa-check"></i> Duración: {{ $plan->duration_months }} mes(es)</li>
                     </ul>
                 </div>
-                <div class="plan-card plan-card--estandar">
-                    <div class="plan-header">
-                        <span class="plan-nombre">Estándar</span>
-                        <button class="plan-edit-btn" title="Editar"><i class="fas fa-edit"></i></button>
-                    </div>
-                    <ul class="plan-features">
-                        <li><i class="fas fa-check"></i> 20 aulas</li>
-                        <li><i class="fas fa-check"></i> 10 docentes</li>
-                        <li><i class="fas fa-check"></i> Reportes completos</li>
-                        <li><i class="fas fa-check"></i> Exportación PDF</li>
-                    </ul>
-                </div>
-                <div class="plan-card plan-card--premium">
-                    <div class="plan-header">
-                        <span class="plan-nombre">Premium</span>
-                        <button class="plan-edit-btn" title="Editar"><i class="fas fa-edit"></i></button>
-                    </div>
-                    <ul class="plan-features">
-                        <li><i class="fas fa-check"></i> Aulas ilimitadas</li>
-                        <li><i class="fas fa-check"></i> Docentes ilimitados</li>
-                        <li><i class="fas fa-check"></i> Reportes + análisis</li>
-                        <li><i class="fas fa-check"></i> Soporte prioritario</li>
-                    </ul>
-                </div>
+                @endforeach
             </div>
         </div>
         <div class="modal-footer">
@@ -292,7 +280,7 @@
     </div>
 </div>
 
-{{-- ===================== MODAL: ASIGNAR MEMBRESÍA ===================== --}}
+{{-- MODAL: ASIGNAR --}}
 <div class="modal-overlay" id="modalAsignar">
     <div class="modal modal-md">
         <div class="modal-header">
@@ -302,90 +290,89 @@
             </div>
             <button class="modal-close" onclick="cerrarModal('modalAsignar')"><i class="fas fa-times"></i></button>
         </div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label class="form-label">Institución <span class="required">*</span></label>
-                <select class="form-input">
-                    <option value="">Selecciona una institución...</option>
-                    <option>CBTIS 168</option>
-                    <option>Colegio Americano</option>
-                    <option>CECyTE Plantel 5</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Plan <span class="required">*</span></label>
-                <select class="form-input">
-                    <option value="">Selecciona un plan...</option>
-                    <option>Básico</option>
-                    <option>Estándar</option>
-                    <option>Premium</option>
-                </select>
-            </div>
-            <div class="form-grid-2">
+        <form method="POST" action="{{ route('membresias.upgrade') }}">
+            @csrf
+            <div class="modal-body">
                 <div class="form-group">
-                    <label class="form-label">Fecha de inicio <span class="required">*</span></label>
-                    <input type="date" class="form-input">
+                    <label class="form-label">Institución <span class="required">*</span></label>
+                    <select name="institution_id" class="form-input" required>
+                        <option value="">Selecciona una institución...</option>
+                        @foreach($institutions as $inst)
+                            <option value="{{ $inst->id }}">{{ $inst->name }}</option>
+                        @endforeach
+                    </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Fecha de vencimiento <span class="required">*</span></label>
-                    <input type="date" class="form-input">
+                    <label class="form-label">Plan <span class="required">*</span></label>
+                    <select name="plan_id" class="form-input" required>
+                        <option value="">Selecciona un plan...</option>
+                        @foreach($plans as $plan)
+                            <option value="{{ $plan->id }}">
+                                {{ $plan->name }}
+                                @if(!$plan->isFree()) — ${{ number_format($plan->price, 0) }}/mes @endif
+                            </option>
+                        @endforeach
+                    </select>
                 </div>
             </div>
-            <div class="form-group">
-                <label class="form-label">Observaciones</label>
-                <textarea class="form-textarea" rows="2" placeholder="Notas internas opcionales..."></textarea>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline btn-md" onclick="cerrarModal('modalAsignar')">Cancelar</button>
+                <button type="submit" class="btn btn-primary btn-md">
+                    <i class="fas fa-save"></i>
+                    Asignar membresía
+                </button>
             </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-outline btn-md" onclick="cerrarModal('modalAsignar')">Cancelar</button>
-            <button class="btn btn-primary btn-md">
-                <i class="fas fa-save"></i>
-                Asignar membresía
-            </button>
-        </div>
+        </form>
     </div>
 </div>
 
-{{-- ===================== MODAL: RENOVAR ===================== --}}
+{{-- MODAL: RENOVAR --}}
 <div class="modal-overlay" id="modalRenovar">
     <div class="modal modal-sm">
         <div class="modal-header">
             <div>
                 <h3 class="modal-title">Renovar Membresía</h3>
-                <p class="modal-subtitle">CECyTE Plantel 5 — Plan Básico</p>
+                <p class="modal-subtitle" id="renovarSubtitulo">—</p>
             </div>
             <button class="modal-close" onclick="cerrarModal('modalRenovar')"><i class="fas fa-times"></i></button>
         </div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label class="form-label">Nuevo plan</label>
-                <select class="form-input">
-                    <option>Básico</option>
-                    <option>Estándar</option>
-                    <option>Premium</option>
-                </select>
+        <form method="POST" action="{{ route('membresias.upgrade') }}">
+            @csrf
+            <input type="hidden" name="institution_id" id="renovarInstId">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Plan</label>
+                    <select name="plan_id" id="renovarPlanId" class="form-input" required>
+                        @foreach($plans as $plan)
+                            <option value="{{ $plan->id }}">
+                                {{ $plan->name }}
+                                @if(!$plan->isFree()) — ${{ number_format($plan->price, 0) }}/mes @endif
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <p style="font-size:.85rem;color:var(--text-secondary);margin-top:.5rem;">
+                    <i class="fab fa-paypal"></i>
+                    Serás redirigido a PayPal para completar el pago.
+                </p>
             </div>
-            <div class="form-group">
-                <label class="form-label">Nueva fecha de vencimiento <span class="required">*</span></label>
-                <input type="date" class="form-input">
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline btn-md" onclick="cerrarModal('modalRenovar')">Cancelar</button>
+                <button type="submit" class="btn btn-primary btn-md">
+                    <i class="fab fa-paypal"></i>
+                    Pagar con PayPal
+                </button>
             </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-outline btn-md" onclick="cerrarModal('modalRenovar')">Cancelar</button>
-            <button class="btn btn-primary btn-md">
-                <i class="fas fa-redo"></i>
-                Renovar
-            </button>
-        </div>
+        </form>
     </div>
 </div>
 
-{{-- ===================== MODAL: DETALLE ===================== --}}
+{{-- MODAL: DETALLE --}}
 <div class="modal-overlay" id="modalDetalle">
     <div class="modal modal-md">
         <div class="modal-header">
             <div>
-                <h3 class="modal-title">CBTIS 168</h3>
+                <h3 class="modal-title" id="detalleTitulo">—</h3>
                 <p class="modal-subtitle">Detalle de membresía</p>
             </div>
             <button class="modal-close" onclick="cerrarModal('modalDetalle')"><i class="fas fa-times"></i></button>
@@ -394,51 +381,47 @@
             <div class="detalle-grid">
                 <div class="detalle-item">
                     <span class="detalle-label">Plan</span>
-                    <span class="plan-badge plan-premium">Premium</span>
+                    <span class="detalle-value" id="detallePlan">—</span>
                 </div>
                 <div class="detalle-item">
                     <span class="detalle-label">Estado</span>
-                    <span class="status status-active">Activa</span>
+                    <span class="detalle-value" id="detalleEstado">—</span>
                 </div>
                 <div class="detalle-item">
                     <span class="detalle-label">Inicio</span>
-                    <span class="detalle-value">01/01/2026</span>
+                    <span class="detalle-value" id="detalleInicio">—</span>
                 </div>
                 <div class="detalle-item">
                     <span class="detalle-label">Vencimiento</span>
-                    <span class="detalle-value">31/12/2026</span>
+                    <span class="detalle-value" id="detalleVence">—</span>
                 </div>
                 <div class="detalle-item">
-                    <span class="detalle-label">Aulas permitidas</span>
-                    <span class="detalle-value">Ilimitadas</span>
+                    <span class="detalle-label">Máx. alumnos</span>
+                    <span class="detalle-value" id="detalleAlumnos">—</span>
                 </div>
                 <div class="detalle-item">
-                    <span class="detalle-label">Docentes permitidos</span>
-                    <span class="detalle-value">Ilimitados</span>
-                </div>
-                <div class="detalle-item">
-                    <span class="detalle-label">Aulas en uso</span>
-                    <span class="detalle-value">12</span>
-                </div>
-                <div class="detalle-item">
-                    <span class="detalle-label">Docentes en uso</span>
-                    <span class="detalle-value">8</span>
+                    <span class="detalle-label">Máx. aulas</span>
+                    <span class="detalle-value" id="detalleAulas">—</span>
                 </div>
             </div>
         </div>
         <div class="modal-footer">
             <button class="btn btn-outline btn-md" onclick="cerrarModal('modalDetalle')">Cerrar</button>
-            <button class="btn btn-primary btn-md" onclick="cerrarModal('modalDetalle'); abrirModal('modalRenovar')">
-                <i class="fas fa-redo"></i>
-                Renovar
-            </button>
         </div>
     </div>
 </div>
 
 @push('scripts')
 <script>
-    // ==================== TABS ====================
+    // ── Modales ───────────────────────────────────────────────────────────────
+    function abrirModal(id) { document.getElementById(id).classList.add('active'); }
+    function cerrarModal(id){ document.getElementById(id).classList.remove('active'); }
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape')
+            ['modalPlanes','modalAsignar','modalRenovar','modalDetalle'].forEach(cerrarModal);
+    });
+
+    // ── Tabs ──────────────────────────────────────────────────────────────────
     document.querySelectorAll('.mod-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             document.querySelectorAll('.mod-tab').forEach(t => t.classList.remove('active'));
@@ -450,7 +433,7 @@
         });
     });
 
-    // ==================== BÚSQUEDA ====================
+    // ── Búsqueda ──────────────────────────────────────────────────────────────
     document.getElementById('buscarMembresia').addEventListener('input', function () {
         const texto = this.value.toLowerCase();
         document.querySelectorAll('#tablaMembresias tbody tr').forEach(tr => {
@@ -458,15 +441,37 @@
         });
     });
 
-    // ==================== MODALES ====================
-    function abrirModal(id) { document.getElementById(id).classList.add('active'); }
-    function cerrarModal(id) { document.getElementById(id).classList.remove('active'); }
-
-    document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') {
-            ['modalPlanes','modalAsignar','modalRenovar','modalDetalle'].forEach(cerrarModal);
-        }
+    document.getElementById('filtroPlan').addEventListener('change', function () {
+        const plan = this.value;
+        document.querySelectorAll('#tablaMembresias tbody tr').forEach(tr => {
+            tr.style.display = (!plan || tr.dataset.plan === plan) ? '' : 'none';
+        });
     });
+
+    // ── Detalle ───────────────────────────────────────────────────────────────
+    function abrirDetalle(nombre, plan, inicio, vence, alumnos, aulas, status) {
+        document.getElementById('detalleTitulo').textContent  = nombre;
+        document.getElementById('detallePlan').textContent    = plan;
+        document.getElementById('detalleInicio').textContent  = inicio;
+        document.getElementById('detalleVence').textContent   = vence;
+        document.getElementById('detalleAlumnos').textContent = alumnos;
+        document.getElementById('detalleAulas').textContent   = aulas;
+        const estados = { active: 'Activa', expiring: 'Por vencer', expired: 'Expirada' };
+        document.getElementById('detalleEstado').textContent  = estados[status] ?? status;
+        abrirModal('modalDetalle');
+    }
+
+    // ── Renovar ───────────────────────────────────────────────────────────────
+    function abrirRenovar(instId, planId, nombre, planNombre) {
+        document.getElementById('renovarSubtitulo').textContent = `${nombre} — Plan ${planNombre}`;
+        document.getElementById('renovarInstId').value          = instId;
+        // Pre-seleccionar el plan actual
+        const select = document.getElementById('renovarPlanId');
+        for (let opt of select.options) {
+            if (opt.value === planId) { opt.selected = true; break; }
+        }
+        abrirModal('modalRenovar');
+    }
 </script>
 @endpush
 

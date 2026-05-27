@@ -14,7 +14,7 @@ return new class extends Migration
     {
         Schema::create('attendances', function (Blueprint $table) {
             $table->uuid('id')->primary()->default(DB::raw('gen_random_uuid()'));
-            $table->foreignUuid('session_id')->constrained()->cascadeOnDelete();
+            $table->foreignUuid('session_id')->constrained('class_sessions')->cascadeOnDelete();
             $table->foreignUuid('student_id')->constrained('users');
             $table->enum('status', ['present', 'absent'])->default('absent');
             $table->timestamps();

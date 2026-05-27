@@ -36,8 +36,8 @@ class SupabaseStorageService
             ->post("{$this->url}/storage/v1/object/{$bucket}/{$filename}");
 
         if ($response->successful()) {
-            return "{$this->url}/storage/v1/object/sign/{$bucket}/{$filename}";
-        }
+    return "{$this->url}/storage/v1/object/public/{$bucket}/{$filename}";
+}
 
         return null;
     }

@@ -3,6 +3,8 @@
 use App\Http\Controllers\AuthController;   
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InstitutionController;
+use App\Http\Controllers\SubscriptionController;
+
 
 use Illuminate\Support\Facades\Route;
 
@@ -43,12 +45,14 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/instituciones',                       [InstitutionController::class, 'store'])->name('instituciones.store');
     Route::put('/instituciones/{institution}',          [InstitutionController::class, 'update'])->name('instituciones.update');
     Route::patch('/instituciones/{institution}/toggle', [InstitutionController::class, 'toggleStatus'])->name('instituciones.toggle');
+    
+    // ── PayPal callbacks ──────────────────────────────────────────────────
+Route::get('/paypal/success',      [SubscriptionController::class, 'paypalSuccess'])->name('paypal.success');
+Route::get('/paypal/cancel',       [SubscriptionController::class, 'paypalCancel'])->name('paypal.cancel');
+Route::get('/membresias',          [SubscriptionController::class, 'index'])->name('membresias.index');
+Route::post('/membresias/upgrade', [SubscriptionController::class, 'upgrade'])->name('membresias.upgrade');
 
-    // Membresías y Edición Administrativa
-    Route::get('/membresias', function () {
-        return view('membresias.index');
-    })->name('membresias.index');
-
+    // Edición Administrativa (Membresías ya está registrada arriba con SubscriptionController)
     Route::get('/admin/edicion', function () {
         return view('admin.edicion');
     })->name('admin.edicion');

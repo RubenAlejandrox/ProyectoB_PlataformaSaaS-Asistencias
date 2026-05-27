@@ -44,5 +44,10 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+
+        <env name="PAYPAL_MODE"      value="sandbox"/>
+        <env name="PAYPAL_CLIENT_ID" value="AQWbHg5DKSGq7Sr-D3XllfI4YO8qmLZ38Ir5qEGzoYYjMrWk0I7cAAieeBX2tsjLngntq7hhikwxFh1V"/>
+        <env name="PAYPAL_SECRET"    value="ECQkfHBtzV1RB1xbVLYsIUuxf_9b114tjEY9d5fznpJRU6aWFMEVsSHgWOKEPiXOOU8MOp0mLqfJGzok"/>
+        <env name="PAYPAL_CURRENCY"  value="MXN"/>
     </php>
 </phpunit>
