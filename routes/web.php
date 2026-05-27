@@ -1,8 +1,10 @@
 <?php
 
-use App\Http\Controllers\AuthController;   
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ClassroomController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InstitutionController;
+use App\Http\Controllers\InvitationCodeController;
 use App\Http\Controllers\SubscriptionController;
 
 
@@ -58,14 +60,16 @@ Route::middleware(['auth'])->group(function () {
         return view('admin.edicion');
     })->name('admin.edicion');
 
-    // Módulos de Control de Aulas e Inscripciones
-    Route::get('/aulas', function () {
-        return view('aulas.index');
-    })->name('aulas.index');
+    // ── Aulas ─────────────────────────────────────────────────────────────
+    Route::get('/aulas',                            [ClassroomController::class, 'index'])->name('aulas.index');
+    Route::get('/aulas/create',                     [ClassroomController::class, 'create'])->name('aulas.create');
+    Route::post('/aulas',                           [ClassroomController::class, 'store'])->name('aulas.store');
+    Route::patch('/aulas/{classroom}/toggle',       [ClassroomController::class, 'toggleStatus'])->name('aulas.toggle');
+    Route::post('/aulas/{classroom}/generate-code', [ClassroomController::class, 'generateCode'])->name('aulas.generate-code');
 
-    Route::get('/aulas/create', function () {
-        return view('aulas.create');
-    })->name('aulas.create');
+    // ── Códigos de invitación ─────────────────────────────────────────────
+    Route::post('/aulas/{classroom}/invitation-codes',        [InvitationCodeController::class, 'store'])->name('invitation-codes.store');
+    Route::get('/aulas/{classroom}/invitation-codes/active',  [InvitationCodeController::class, 'active'])->name('invitation-codes.active');
 
     Route::get('/ciclo/cierre', function () {
         return view('ciclo.cierre');
