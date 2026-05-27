@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\LoginRequest;
 use App\Models\Institution;
+use App\Models\InstitutionCode;
+use App\Models\InvitationCode;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -135,49 +137,69 @@ class AuthController extends Controller
             'email'           => 'required|email|unique:users,email',
             'role'            => 'required|in:Teacher,Student',
             'password'        => 'required|string|min:8|confirmed',
-            'invitation_code' => 'nullable|string|size:8',
+            'invitation_code' => 'nullable|string',
         ], [
-            'email.unique'        => 'Este correo ya está registrado.',
-            'password.min'        => 'La contraseña debe tener al menos 8 caracteres.',
-            'password.confirmed'  => 'Las contraseñas no coinciden.',
-            'invitation_code.size'=> 'El código de invitación debe tener 8 caracteres.',
+            'email.unique'       => 'Este correo ya está registrado.',
+            'password.min'       => 'La contraseña debe tener al menos 8 caracteres.',
+            'password.confirmed' => 'Las contraseñas no coinciden.',
         ]);
 
-        // Buscar institución por código de invitación (si aplica)
-        $institutionId = null;
+        $institutionId   = null;
+        $institutionCode = null;
+        $aulaCode        = null;
 
-        if ($request->filled('invitation_code') && $request->role === 'Student') {
-            $code = \App\Models\InvitationCode::withoutGlobalScopes()
+        if ($request->role === 'Teacher') {
+            // ── Docente: requiere código de institución ───────────────────────
+            if (!$request->filled('invitation_code')) {
+                return back()->withInput()
+                    ->withErrors(['invitation_code' => 'Los docentes deben ingresar un código de institución.'])
+                    ->with('_form', 'register');
+            }
+
+            $institutionCode = InstitutionCode::withoutGlobalScopes()
                 ->where('code', strtoupper($request->invitation_code))
+                ->where('role', 'Teacher')
                 ->where('is_used', false)
                 ->where('expires_at', '>', now())
                 ->first();
 
-            if (!$code) {
-                return back()
-                    ->withInput()
-                    ->withErrors(['invitation_code' => 'Código de invitación inválido o expirado.'])
+            if (!$institutionCode) {
+                return back()->withInput()
+                    ->withErrors(['invitation_code' => 'Código de institución inválido o expirado.'])
                     ->with('_form', 'register');
             }
 
-            $institutionId = $code->classroom->institution_id;
+            $institutionId = $institutionCode->institution_id;
+
+        } elseif ($request->role === 'Student') {
+            // ── Alumno: código de aula (opcional) o institución demo ─────────
+            if ($request->filled('invitation_code')) {
+                $aulaCode = InvitationCode::withoutGlobalScopes()
+                    ->where('code', strtoupper($request->invitation_code))
+                    ->where('is_used', false)
+                    ->where('expires_at', '>', now())
+                    ->first();
+
+                if (! $aulaCode) {
+                    return back()->withInput()
+                        ->withErrors(['invitation_code' => 'Código de aula inválido o expirado.'])
+                        ->with('_form', 'register');
+                }
+
+                $institutionId = $aulaCode->classroom->institution_id;
+            } else {
+                $institutionId = Institution::withoutGlobalScopes()
+                    ->where('name', 'GAMA Demo')
+                    ->first()?->id;
+            }
         }
 
-        // Si no hay código, usar institución demo (ajustar según lógica de negocio)
         if (!$institutionId) {
-            $institutionId = Institution::withoutGlobalScopes()
-                ->where('name', 'GAMA Demo')
-                ->first()?->id;
-        }
-
-        if (!$institutionId) {
-            return back()
-                ->withInput()
+            return back()->withInput()
                 ->withErrors(['general' => 'No se pudo determinar la institución. Contacta al administrador.'])
                 ->with('_form', 'register');
         }
 
-        // Crear usuario
         $user = User::create([
             'institution_id'        => $institutionId,
             'first_name'            => $request->first_name,
@@ -190,9 +212,12 @@ class AuthController extends Controller
 
         $user->assignRole($request->role);
 
-        // Marcar código como usado si aplica
-        if (isset($code)) {
-            $code->update(['is_used' => true]);
+        // Marcar código como usado (institución o aula, según rol)
+        if ($institutionCode) {
+            $institutionCode->update(['is_used' => true]);
+        }
+        if ($aulaCode) {
+            $aulaCode->update(['is_used' => true]);
         }
 
         // Login automático después del registro

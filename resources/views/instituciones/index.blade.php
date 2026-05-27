@@ -61,6 +61,31 @@
         </div>
     @endif
 
+    {{-- BANNER: CÓDIGO GENERADO --}}
+    @if(session('generated_code'))
+        @php $gc = session('generated_code'); @endphp
+        <div style="display:flex;align-items:center;gap:1rem;background:#EAF3FB;border:1px solid #134474;border-left:4px solid #134474;border-radius:8px;padding:1rem 1.5rem;margin-bottom:1.2rem;">
+            <i class="fas fa-key" style="color:#134474;font-size:1.5rem;"></i>
+            <div>
+                <p style="font-weight:700;color:#134474;margin:0;">
+                    Código generado para {{ $gc['institution'] }} — Rol: {{ $gc['role'] }}
+                </p>
+                <p style="font-size:1.4rem;font-weight:800;letter-spacing:.3rem;color:#F28B2C;margin:.3rem 0;">
+                    {{ $gc['code'] }}
+                </p>
+                <p style="font-size:.8rem;color:#666;margin:0;">
+                    Vence: {{ $gc['expires_at'] }} · Comparte este código con el {{ strtolower($gc['role']) === 'teacher' ? 'docente' : 'alumno' }}
+                </p>
+            </div>
+            <button type="button"
+                    onclick="copiarCodigo('{{ $gc['code'] }}', this)"
+                    class="btn btn-primary btn-sm"
+                    style="margin-left:auto;">
+                <i class="fas fa-copy"></i> Copiar
+            </button>
+        </div>
+    @endif
+
     {{-- KPI CARDS --}}
     <div class="kpi-grid">
         <div class="kpi-card">
@@ -175,6 +200,23 @@
                                     )">
                                     <i class="fas fa-edit"></i>
                                 </button>
+                                @endif
+
+                                {{-- Generar código de docente --}}
+                                @if($inst->is_active)
+                                <form method="POST"
+                                      action="{{ route('instituciones.generate-code', $inst->id) }}"
+                                      style="display:inline"
+                                      id="codeForm-{{ $inst->id }}">
+                                    @csrf
+                                    <input type="hidden" name="role" value="Teacher">
+                                    <button type="submit"
+                                            class="action-btn"
+                                            title="Generar código docente"
+                                            style="color:#134474">
+                                        <i class="fas fa-key"></i>
+                                    </button>
+                                </form>
                                 @endif
 
                                 {{-- Toggle estado --}}
@@ -458,6 +500,33 @@
     }
     document.getElementById('buscarInstitucion').addEventListener('input', filtrar);
     document.getElementById('filtroEstado').addEventListener('change', filtrar);
+
+    // ── Copiar código generado al portapapeles ───────────────────────────────
+    function copiarCodigo(code, btn) {
+        const fallback = () => {
+            const ta = document.createElement('textarea');
+            ta.value = code;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch (e) { /* noop */ }
+            document.body.removeChild(ta);
+        };
+
+        const onDone = () => {
+            const original = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check"></i> Copiado';
+            setTimeout(() => { btn.innerHTML = original; }, 1500);
+        };
+
+        if (navigator.clipboard?.writeText) {
+            navigator.clipboard.writeText(code).then(onDone).catch(() => { fallback(); onDone(); });
+        } else {
+            fallback();
+            onDone();
+        }
+    }
 
     // ── Abrir modal crear si hay errores de validación ───────────────────────
     @if($errors->hasAny(['name', 'logo']))

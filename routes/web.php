@@ -45,12 +45,13 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/instituciones',                       [InstitutionController::class, 'store'])->name('instituciones.store');
     Route::put('/instituciones/{institution}',          [InstitutionController::class, 'update'])->name('instituciones.update');
     Route::patch('/instituciones/{institution}/toggle', [InstitutionController::class, 'toggleStatus'])->name('instituciones.toggle');
+    Route::post('/instituciones/{institution}/generate-code', [InstitutionController::class, 'generateCode'])->name('instituciones.generate-code');
     
     // ── PayPal callbacks ──────────────────────────────────────────────────
-Route::get('/paypal/success',      [SubscriptionController::class, 'paypalSuccess'])->name('paypal.success');
-Route::get('/paypal/cancel',       [SubscriptionController::class, 'paypalCancel'])->name('paypal.cancel');
-Route::get('/membresias',          [SubscriptionController::class, 'index'])->name('membresias.index');
-Route::post('/membresias/upgrade', [SubscriptionController::class, 'upgrade'])->name('membresias.upgrade');
+    Route::get('/paypal/success',      [SubscriptionController::class, 'paypalSuccess'])->name('paypal.success');
+    Route::get('/paypal/cancel',       [SubscriptionController::class, 'paypalCancel'])->name('paypal.cancel');
+    Route::get('/membresias',          [SubscriptionController::class, 'index'])->name('membresias.index');
+    Route::post('/membresias/upgrade', [SubscriptionController::class, 'upgrade'])->name('membresias.upgrade');
 
     // Edición Administrativa (Membresías ya está registrada arriba con SubscriptionController)
     Route::get('/admin/edicion', function () {

@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Institution;
+use App\Models\InstitutionCode;
 use App\Services\SupabaseStorageService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class InstitutionController extends Controller
 {
@@ -131,5 +133,33 @@ class InstitutionController extends Controller
             : "Institución \"{$institution->name}\" desactivada.";
 
         return back()->with('success', $msg);
+    }
+
+    // ── generateCode — código de invitación por institución y rol ────────────
+    public function generateCode(Request $request, Institution $institution)
+    {
+        $request->validate([
+            'role' => 'required|in:Teacher,Student',
+        ]);
+
+        // Generar código único de 8 chars
+        do {
+            $code = strtoupper(Str::random(8));
+        } while (InstitutionCode::withoutGlobalScopes()->where('code', $code)->exists());
+
+        $institutionCode = InstitutionCode::create([
+            'institution_id' => $institution->id,
+            'code'           => $code,
+            'role'           => $request->role,
+            'expires_at'     => now()->addDays(7),
+            'is_used'        => false,
+        ]);
+
+        return back()->with('generated_code', [
+            'code'        => $institutionCode->code,
+            'role'        => $institutionCode->role,
+            'expires_at'  => $institutionCode->expires_at->format('d/m/Y H:i'),
+            'institution' => $institution->name,
+        ]);
     }
 }

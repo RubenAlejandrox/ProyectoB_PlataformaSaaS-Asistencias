@@ -28,4 +28,8 @@ class Institution extends Model
             ->where('status', 'active')
             ->latest()->first()?->plan;
     }
+    public function institutionCodes()
+    {
+    return $this->hasMany(InstitutionCode::class);
+    }
 }

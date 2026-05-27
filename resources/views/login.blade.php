@@ -228,11 +228,11 @@
                     </div>
                 </div>
 
-                {{-- Código de invitación — solo visible para alumnos --}}
+                {{-- Código de invitación — visible según rol seleccionado --}}
                 <div class="form-group" id="invitationGroup" style="display:none;">
                     <label class="form-label">
                         Código de invitación
-                        <span style="font-size:.75rem; color:var(--soft-steel); font-weight:400;">(opcional — para unirte a un aula)</span>
+                        <span style="font-size:.75rem; color:var(--soft-steel); font-weight:400;"></span>
                     </label>
                     <div class="form-input-wrapper">
                         <i class="fas fa-ticket-alt input-icon"></i>
@@ -360,9 +360,38 @@
         }
 
         // ── Mostrar/ocultar código de invitación según rol ───────────────────
-        document.getElementById('roleSelect')?.addEventListener('change', function () {
+        // Docente: requerido (código de institución)
+        // Alumno:  opcional (código de aula)
+        function applyInvitationContext(role) {
             const group = document.getElementById('invitationGroup');
-            group.style.display = this.value === 'Student' ? 'block' : 'none';
+            if (!group) return;
+            const label = group.querySelector('.form-label');
+            const hint  = label.querySelector('span');
+            const input = group.querySelector('input[name="invitation_code"]');
+
+            if (role === 'Student') {
+                group.style.display = 'block';
+                label.firstChild.nodeValue = 'Código de aula ';
+                hint.textContent = '(opcional)';
+                input.placeholder = 'Código del aula';
+            } else if (role === 'Teacher') {
+                group.style.display = 'block';
+                label.firstChild.nodeValue = 'Código de institución ';
+                hint.textContent = '(requerido)';
+                input.placeholder = 'Código de tu institución';
+            } else {
+                group.style.display = 'none';
+            }
+        }
+
+        document.getElementById('roleSelect')?.addEventListener('change', function () {
+            applyInvitationContext(this.value);
+        });
+
+        // Aplicar el contexto inicial si ya hay un rol pre-seleccionado (old('role'))
+        document.addEventListener('DOMContentLoaded', function () {
+            const sel = document.getElementById('roleSelect');
+            if (sel && sel.value) applyInvitationContext(sel.value);
         });
 
         // ── Si hay errores del register, abrir ese tab automáticamente ───────
