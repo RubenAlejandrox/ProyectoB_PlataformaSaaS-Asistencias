@@ -11,6 +11,9 @@ use App\Http\Controllers\JustificationController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\AttendanceWebController;
 use App\Http\Controllers\AdminSessionController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\CycleController;
+use App\Http\Controllers\AdminEditController;
 
 
 use Illuminate\Support\Facades\Route;
@@ -48,22 +51,33 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index']);
 
     // Módulos Administrativos
-    Route::get('/instituciones',                        [InstitutionController::class, 'index'])->name('instituciones.index');
-    Route::post('/instituciones',                       [InstitutionController::class, 'store'])->name('instituciones.store');
-    Route::put('/instituciones/{institution}',          [InstitutionController::class, 'update'])->name('instituciones.update');
-    Route::patch('/instituciones/{institution}/toggle', [InstitutionController::class, 'toggleStatus'])->name('instituciones.toggle');
-    Route::post('/instituciones/{institution}/generate-code', [InstitutionController::class, 'generateCode'])->name('instituciones.generate-code');
-    
-    // ── PayPal callbacks ──────────────────────────────────────────────────
-    Route::get('/paypal/success',      [SubscriptionController::class, 'paypalSuccess'])->name('paypal.success');
-    Route::get('/paypal/cancel',       [SubscriptionController::class, 'paypalCancel'])->name('paypal.cancel');
-    Route::get('/membresias',          [SubscriptionController::class, 'index'])->name('membresias.index');
-    Route::post('/membresias/upgrade', [SubscriptionController::class, 'upgrade'])->name('membresias.upgrade');
+    Route::middleware('role:Administrator')->group(function () {
+        Route::get('/instituciones',                        [InstitutionController::class, 'index'])->name('instituciones.index');
+        Route::post('/instituciones',                       [InstitutionController::class, 'store'])->name('instituciones.store');
+        Route::put('/instituciones/{institution}',          [InstitutionController::class, 'update'])->name('instituciones.update');
+        Route::patch('/instituciones/{institution}/toggle', [InstitutionController::class, 'toggleStatus'])->name('instituciones.toggle');
+        Route::post('/instituciones/{institution}/generate-code', [InstitutionController::class, 'generateCode'])->name('instituciones.generate-code');
 
-    // Edición Administrativa (Membresías ya está registrada arriba con SubscriptionController)
-    Route::get('/admin/edicion', function () {
-        return view('admin.edicion');
-    })->name('admin.edicion');
+        // ── PayPal callbacks ──────────────────────────────────────────────
+        Route::get('/paypal/success',      [SubscriptionController::class, 'paypalSuccess'])->name('paypal.success');
+        Route::get('/paypal/cancel',       [SubscriptionController::class, 'paypalCancel'])->name('paypal.cancel');
+        Route::get('/membresias',          [SubscriptionController::class, 'index'])->name('membresias.index');
+        Route::post('/membresias/upgrade', [SubscriptionController::class, 'upgrade'])->name('membresias.upgrade');
+    });
+
+    // Edición Administrativa
+    Route::get('/admin/edicion', [AdminEditController::class, 'index'])
+        ->middleware('role:Administrator')
+        ->name('admin.edicion');
+    Route::put('/admin/asistencia/{attendance}', [AdminEditController::class, 'correctAttendance'])
+        ->middleware('role:Administrator')
+        ->name('admin.asistencia.correct');
+    Route::put('/admin/alumno/{enrollment}', [AdminEditController::class, 'dropStudent'])
+        ->middleware('role:Administrator')
+        ->name('admin.alumno.drop');
+    Route::delete('/admin/sesion/{session}', [AdminEditController::class, 'deleteSession'])
+        ->middleware('role:Administrator')
+        ->name('admin.sesion.delete');
     Route::get('/admin/bitacora', [AuditLogController::class, 'index'])
         ->middleware('role:Administrator')
         ->name('bitacora.index');
@@ -88,9 +102,12 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/aulas/{classroom}/invitation-codes',        [InvitationCodeController::class, 'store'])->name('invitation-codes.store');
     Route::get('/aulas/{classroom}/invitation-codes/active',  [InvitationCodeController::class, 'active'])->name('invitation-codes.active');
 
-    Route::get('/ciclo/cierre', function () {
-        return view('ciclo.cierre');
-    })->name('ciclo.cierre');
+    Route::get('/ciclo/cierre', [CycleController::class, 'index'])
+        ->middleware('role:Teacher')
+        ->name('ciclo.cierre');
+    Route::post('/ciclo/{cycle}/close', [CycleController::class, 'close'])
+        ->middleware('role:Teacher')
+        ->name('ciclo.close');
 
     // Sistema Analítico de Asistencias
     Route::middleware('role:Teacher')->group(function () {
@@ -117,7 +134,16 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/justificantes', [JustificationController::class, 'storeWeb'])->name('justificantes.store');
     Route::patch('/justificantes/{justification}/review', [JustificationController::class, 'reviewWeb'])->name('justificantes.review');
 
-    Route::get('/reportes', function () {
-        return view('reportes.index');
-    })->name('reportes.index');
+    Route::get('/reportes', [ReportController::class, 'index'])
+        ->middleware('role:Teacher,Administrator')
+        ->name('reportes.index');
+    Route::get('/reportes/{classroom}/matrix', [ReportController::class, 'matrix'])
+        ->middleware('role:Teacher,Administrator')
+        ->name('reportes.matrix');
+    Route::get('/reportes/{classroom}/monthly', [ReportController::class, 'monthly'])
+        ->middleware('role:Teacher,Administrator')
+        ->name('reportes.monthly');
+    Route::post('/reportes/{classroom}/send', [ReportController::class, 'send'])
+        ->middleware('role:Teacher,Administrator')
+        ->name('reportes.send');
 });

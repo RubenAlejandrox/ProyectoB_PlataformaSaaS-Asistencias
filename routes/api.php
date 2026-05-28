@@ -40,6 +40,8 @@ Route::middleware(['auth:sanctum', 'plan', 'auditoria'])->group(function () {
         Route::post('subscriptions/upgrade', [SubscriptionController::class, 'upgrade']);
         Route::get('payments', [PaymentController::class, 'index']);
         Route::post('admin/corrections', [AdminEditController::class, 'correctAttendance']);
+        Route::post('admin/drop-student/{enrollment}', [AdminEditController::class, 'dropStudent']);
+        Route::delete('admin/delete-session/{session}', [AdminEditController::class, 'deleteSession']);
     });
 
     // Teacher
@@ -52,6 +54,7 @@ Route::middleware(['auth:sanctum', 'plan', 'auditoria'])->group(function () {
         Route::post('cycles/{cycle}/close', [CycleController::class, 'close']);
         Route::get('reports/matrix/{classroom}', [ReportController::class, 'matrix']);
         Route::get('reports/monthly/{classroom}', [ReportController::class, 'monthly']);
+        Route::post('reports/send/{classroom}', [ReportController::class, 'send']);
     });
 
     // Student

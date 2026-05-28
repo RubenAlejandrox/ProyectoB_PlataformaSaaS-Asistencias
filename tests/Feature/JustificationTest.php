@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Events\TrafficLightAlert;
 use App\Models\Attendance;
 use App\Models\Classroom;
 use App\Models\Enrollment;
@@ -12,8 +13,10 @@ use App\Models\Session;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Services\SupabaseStorageService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -149,8 +152,31 @@ class JustificationTest extends TestCase
     }
 
     #[Test]
+    public function student_cannot_justify_absence_after_72_hours(): void
+    {
+        $this->attendance->update([
+            'updated_at' => now()->subHours(73),
+        ]);
+        DB::table('attendances')->where('id', $this->attendance->id)->update([
+            'created_at' => now()->subHours(73),
+        ]);
+
+        $response = $this->actingAs($this->student)
+            ->post('/api/justifications', [
+                'attendance_id' => $this->attendance->id,
+                'reason'        => 'Fuera de tiempo',
+                'file'          => UploadedFile::fake()->create('justificante.pdf', 100, 'application/pdf'),
+            ], ['Accept' => 'application/json']);
+
+        $response->assertStatus(422)
+            ->assertJsonFragment(['message' => 'La ventana de 72 horas para justificar esta falta ya expiró.']);
+    }
+
+    #[Test]
     public function teacher_approval_sets_approved_and_reviewed_at(): void
     {
+        Event::fake([TrafficLightAlert::class]);
+
         $justification = Justification::create([
             'attendance_id' => $this->attendance->id,
             'student_id'    => $this->student->id,
@@ -169,6 +195,7 @@ class JustificationTest extends TestCase
         $justification->refresh();
         $this->assertNotNull($justification->reviewed_at);
         $this->assertEquals($this->teacher->id, $justification->reviewed_by);
+        Event::assertDispatched(TrafficLightAlert::class);
     }
 
     #[Test]

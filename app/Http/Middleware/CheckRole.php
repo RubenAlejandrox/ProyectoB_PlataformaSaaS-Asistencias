@@ -10,6 +10,10 @@ class CheckRole
     public function handle(Request $request, Closure $next, string ...$roles)
     {
         if (!auth()->check()) {
+            if (!$request->expectsJson()) {
+                return redirect()->route('login');
+            }
+
             return response()->json([
                 'message' => 'Unauthenticated.'
             ], 401);
@@ -19,6 +23,10 @@ class CheckRole
             if (auth()->user()->hasRole($role)) {
                 return $next($request);
             }
+        }
+
+        if (!$request->expectsJson()) {
+            abort(403, 'Unauthorized. Required role: ' . implode(' or ', $roles));
         }
 
         return response()->json([

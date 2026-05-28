@@ -107,6 +107,42 @@
 
             <div class="card">
                 <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-file-upload"></i> Enviar justificante</h3>
+                </div>
+                <div class="card-body">
+                    @if($absencesWithoutJustification->isEmpty())
+                        <p style="margin:0;color:#6b7280;">No tienes faltas pendientes dentro de la ventana de 72 horas.</p>
+                    @else
+                        <form method="POST" action="{{ route('justificantes.store') }}" enctype="multipart/form-data">
+                            @csrf
+                            <div class="form-group" style="margin-bottom:.6rem;">
+                                <label class="form-label">Falta</label>
+                                <select class="form-input" name="attendance_id" required>
+                                    @foreach($absencesWithoutJustification as $att)
+                                        <option value="{{ $att->id }}">
+                                            {{ $att->session?->session_date?->format('d/m/Y') }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom:.6rem;">
+                                <label class="form-label">Motivo</label>
+                                <input class="form-input" type="text" name="reason" maxlength="500">
+                            </div>
+                            <div class="form-group" style="margin-bottom:.8rem;">
+                                <label class="form-label">Archivo (PDF/JPG/PNG)</label>
+                                <input class="form-input" type="file" name="file" accept=".pdf,.jpg,.jpeg,.png" required>
+                            </div>
+                            <button class="btn btn-outline btn-md" type="submit">
+                                <i class="fas fa-paper-plane"></i> Enviar justificante
+                            </button>
+                        </form>
+                    @endif
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
                     <h3 class="card-title"><i class="fas fa-chart-line"></i> Progreso por materia</h3>
                 </div>
                 <div class="card-body">

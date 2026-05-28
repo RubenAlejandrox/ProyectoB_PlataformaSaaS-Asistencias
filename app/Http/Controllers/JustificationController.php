@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Attendance;
 use App\Models\Classroom;
 use App\Models\Justification;
+use App\Services\AttendanceProgressService;
 use App\Services\SupabaseStorageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -16,7 +17,8 @@ class JustificationController extends Controller
     private const BUCKET = 'justification-files';
 
     public function __construct(
-        private SupabaseStorageService $storage
+        private SupabaseStorageService $storage,
+        private AttendanceProgressService $progressService
     ) {}
 
     // ── WEB: listado por rol ──────────────────────────────────────────────────
@@ -60,6 +62,7 @@ class JustificationController extends Controller
             $absencesWithoutJustification = Attendance::withoutGlobalScopes()
                 ->where('student_id', $user->id)
                 ->where('status', 'absent')
+                ->where('created_at', '>=', now()->subHours(72))
                 ->whereDoesntHave('justification')
                 ->whereHas('session.classroom.enrollments', function ($q) use ($user) {
                     $q->where('student_id', $user->id)->where('is_active', true);
@@ -184,6 +187,18 @@ class JustificationController extends Controller
             ], 409);
         }
 
+        if ($attendance->status !== 'absent') {
+            return response()->json([
+                'message' => 'Solo puedes justificar una falta.',
+            ], 422);
+        }
+
+        if ($attendance->created_at->lt(now()->subHours(72))) {
+            return response()->json([
+                'message' => 'La ventana de 72 horas para justificar esta falta ya expiró.',
+            ], 422);
+        }
+
         if (!$this->storage->isAllowedMime($request->file('file'), self::BUCKET)) {
             return response()->json([
                 'message' => 'Tipo de archivo no permitido. Solo PDF, JPG o PNG.',
@@ -238,11 +253,23 @@ class JustificationController extends Controller
         }
 
         try {
+            $studentId = $justification->student_id;
+            $classroomId = $justification->attendance->session->classroom_id;
+            $previousLight = $this->progressService->calculate($studentId, $classroomId)['light'];
+
             $justification->update([
                 'status'      => $request->status,
                 'reviewed_at' => now(),
                 'reviewed_by' => auth()->user()->id,
             ]);
+
+            if ($request->status === 'approved') {
+                $this->progressService->dispatchTrafficLightIfChanged(
+                    $studentId,
+                    $classroomId,
+                    $previousLight
+                );
+            }
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }

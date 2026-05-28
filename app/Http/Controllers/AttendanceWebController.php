@@ -146,12 +146,22 @@ class AttendanceWebController extends Controller
             ?? ($subjects[0] ?? null);
 
         $history = collect();
+        $absencesWithoutJustification = collect();
         if ($selected) {
             $history = Attendance::withoutGlobalScopes()
                 ->with(['session', 'justification'])
                 ->where('student_id', $user->id)
                 ->whereHas('session', fn ($q) => $q->where('classroom_id', $selected['classroom_id']))
                 ->orderByDesc('created_at')
+                ->get();
+
+            $absencesWithoutJustification = Attendance::withoutGlobalScopes()
+                ->where('student_id', $user->id)
+                ->where('status', 'absent')
+                ->where('created_at', '>=', now()->subHours(72))
+                ->whereHas('session', fn ($q) => $q->where('classroom_id', $selected['classroom_id']))
+                ->whereDoesntHave('justification')
+                ->with('session')
                 ->get();
         }
 
@@ -171,6 +181,7 @@ class AttendanceWebController extends Controller
             'totalPresent' => $totalPresent,
             'totalAbsent'  => $totalAbsent,
             'totalJustif'  => $totalJustif,
+            'absencesWithoutJustification' => $absencesWithoutJustification,
             'user'         => $user,
         ]);
     }
