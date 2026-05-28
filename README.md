@@ -284,7 +284,7 @@ DB_USERNAME=postgres
 DB_PASSWORD=tu_password
 
 # Supabase
-SUPABASE_URL=https://wpgzcsjyurrfyjyaxfvb.supabase.co
+SUPABASE_URL=url
 SUPABASE_ANON_KEY=tu_anon_key
 SUPABASE_SERVICE_KEY=tu_service_key
 
