@@ -7,10 +7,12 @@ use App\Models\Institution;
 use App\Models\InstitutionCode;
 use App\Models\InvitationCode;
 use App\Models\User;
+use App\Services\EnrollmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
@@ -174,15 +176,24 @@ class AuthController extends Controller
         } elseif ($request->role === 'Student') {
             // ── Alumno: código de aula (opcional) o institución demo ─────────
             if ($request->filled('invitation_code')) {
-                $aulaCode = InvitationCode::withoutGlobalScopes()
-                    ->where('code', strtoupper($request->invitation_code))
-                    ->where('is_used', false)
-                    ->where('expires_at', '>', now())
-                    ->first();
+                $aulaCode = app(EnrollmentService::class)
+                    ->findValidInvitationCode($request->invitation_code);
 
                 if (! $aulaCode) {
                     return back()->withInput()
                         ->withErrors(['invitation_code' => 'Código de aula inválido o expirado.'])
+                        ->with('_form', 'register');
+                }
+
+                if (!$aulaCode->classroom->is_active) {
+                    return back()->withInput()
+                        ->withErrors(['invitation_code' => 'El aula no está activa.'])
+                        ->with('_form', 'register');
+                }
+
+                if ($aulaCode->classroom->isFull()) {
+                    return back()->withInput()
+                        ->withErrors(['invitation_code' => 'El aula ha alcanzado su capacidad máxima.'])
                         ->with('_form', 'register');
                 }
 
@@ -200,27 +211,41 @@ class AuthController extends Controller
                 ->with('_form', 'register');
         }
 
-        $user = User::create([
-            'institution_id'        => $institutionId,
-            'first_name'            => $request->first_name,
-            'last_name'             => $request->last_name,
-            'email'                 => $request->email,
-            'password_hash'         => bcrypt($request->password),
-            'is_active'             => true,
-            'failed_login_attempts' => 0,
-        ]);
+        try {
+            $user = DB::transaction(function () use (
+                $request,
+                $institutionId,
+                $institutionCode,
+                $aulaCode
+            ) {
+                $user = User::create([
+                    'institution_id'        => $institutionId,
+                    'first_name'            => $request->first_name,
+                    'last_name'             => $request->last_name,
+                    'email'                 => $request->email,
+                    'password_hash'         => bcrypt($request->password),
+                    'is_active'             => true,
+                    'failed_login_attempts' => 0,
+                ]);
 
-        $user->assignRole($request->role);
+                $user->assignRole($request->role);
 
-        // Marcar código como usado (institución o aula, según rol)
-        if ($institutionCode) {
-            $institutionCode->update(['is_used' => true]);
+                if ($institutionCode) {
+                    $institutionCode->update(['is_used' => true]);
+                }
+
+                if ($aulaCode) {
+                    app(EnrollmentService::class)->enrollFromInvitationCode($aulaCode, $user);
+                }
+
+                return $user;
+            });
+        } catch (\RuntimeException $e) {
+            return back()->withInput()
+                ->withErrors(['invitation_code' => $e->getMessage()])
+                ->with('_form', 'register');
         }
-        if ($aulaCode) {
-            $aulaCode->update(['is_used' => true]);
-        }
 
-        // Login automático después del registro
         Auth::login($user);
         $request->session()->regenerate();
 

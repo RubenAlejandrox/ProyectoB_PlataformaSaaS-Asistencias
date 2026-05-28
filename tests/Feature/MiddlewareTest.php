@@ -179,7 +179,7 @@ class MiddlewareTest extends TestCase
     {
         $this->actingAs($this->admin)
             ->postJson('/api/institutions', [
-                'name'      => 'Audited Institution',
+                'name'      => 'Audited Institution ' . uniqid(),
                 'is_active' => true,
             ]);
 
@@ -212,5 +212,31 @@ class MiddlewareTest extends TestCase
         ]);
 
         $this->assertEquals($initialCount, \App\Models\AuditLog::count());
+    }
+    // ── Audit Test ─────────────────────────────────────────────────────────
+    #[Test]
+    public function admin_can_create_institution_and_it_gets_audited(): void
+    {
+        $name = 'Nueva Institución ' . uniqid();
+
+        $response = $this->actingAs($this->admin)
+            ->postJson('/api/institutions', [
+                'name'      => $name,
+                'is_active' => true,
+            ]);
+
+        $response->assertStatus(201);
+
+        // Verificar que se creó en BD
+        $this->assertDatabaseHas('institutions', [
+            'name' => $name,
+        ]);
+
+        // Verificar que se auditó
+        $this->assertDatabaseHas('audit_log', [
+            'user_id' => $this->admin->id,
+            'action'  => 'create',
+            'entity'  => 'institutions',
+        ]);
     }
 }

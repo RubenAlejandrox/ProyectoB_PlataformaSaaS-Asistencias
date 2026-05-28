@@ -5,6 +5,8 @@ use App\Http\Controllers\ClassroomController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InstitutionController;
 use App\Http\Controllers\InvitationCodeController;
+use App\Http\Controllers\EnrollmentController;
+use App\Http\Controllers\JustificationController;
 use App\Http\Controllers\SubscriptionController;
 
 
@@ -84,9 +86,11 @@ Route::middleware(['auth'])->group(function () {
         return view('asistencias.alumno');
     })->name('asistencias.alumno');
 
-    Route::get('/justificantes', function () {
-        return view('justificantes.index');
-    })->name('justificantes.index');
+    Route::post('/inscripciones', [EnrollmentController::class, 'storeWeb'])->name('enrollments.store');
+
+    Route::get('/justificantes', [JustificationController::class, 'index'])->name('justificantes.index');
+    Route::post('/justificantes', [JustificationController::class, 'storeWeb'])->name('justificantes.store');
+    Route::patch('/justificantes/{justification}/review', [JustificationController::class, 'reviewWeb'])->name('justificantes.review');
 
     Route::get('/reportes', function () {
         return view('reportes.index');

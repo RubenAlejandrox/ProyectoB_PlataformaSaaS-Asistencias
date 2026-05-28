@@ -41,7 +41,7 @@ class LogAuditoria
         if ($response->getStatusCode() >= 200 && $response->getStatusCode() < 300) {
             try {
                 AuditLog::create([
-                    'user_id'    => auth()->id(),
+                    'user_id'    => auth()->user()->id,
                     'entity'     => $this->resolveEntity($request),
                     'entity_id'  => $this->resolveEntityId($request, $response),
                     'action'     => $this->resolveAction($request),

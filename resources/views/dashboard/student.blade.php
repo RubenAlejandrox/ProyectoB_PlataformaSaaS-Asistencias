@@ -31,6 +31,36 @@
         </div>
     </div>
 
+    @if(session('success'))
+        <div style="display:flex;align-items:center;gap:.6rem;background:#d1fae5;border-left:4px solid #28A745;border-radius:8px;padding:.75rem 1rem;margin-bottom:1.2rem;color:#065f46;">
+            <i class="fas fa-check-circle"></i><span>{{ session('success') }}</span>
+        </div>
+    @endif
+
+    {{-- INSCRIPCIÓN CON CÓDIGO DE AULA --}}
+    <div class="card" style="margin-bottom:1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-key"></i> Inscribirme en un aula</h3>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ route('enrollments.store') }}" style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;">
+                @csrf
+                <div style="flex:1;min-width:220px;">
+                    <label class="form-label" for="invitation_code_join">Código de invitación</label>
+                    <input type="text" id="invitation_code_join" name="invitation_code" class="form-input"
+                           placeholder="Ej. ABC12345" value="{{ old('invitation_code') }}" required
+                           style="text-transform:uppercase;">
+                    @error('invitation_code')
+                        <span style="color:#DC3545;font-size:.85rem;">{{ $message }}</span>
+                    @enderror
+                </div>
+                <button type="submit" class="btn btn-primary btn-md">
+                    <i class="fas fa-user-plus"></i> Inscribirme
+                </button>
+            </form>
+        </div>
+    </div>
+
     {{-- KPI CARDS --}}
     <div class="kpi-grid">
         <div class="kpi-card">

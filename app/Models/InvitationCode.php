@@ -16,5 +16,14 @@ class InvitationCode extends Model
     }
 
     public function classroom() { return $this->belongsTo(Classroom::class); }
-    public function isExpired(): bool { return now()->gt($this->expires_at); }
+
+    public function isExpired(): bool
+    {
+        return now()->gt($this->expires_at);
+    }
+
+    public function isValid(): bool
+    {
+        return !$this->is_used && !$this->isExpired();
+    }
 }

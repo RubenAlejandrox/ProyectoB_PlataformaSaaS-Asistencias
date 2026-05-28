@@ -29,6 +29,10 @@ class InstitutionController extends Controller
             'classrooms' => \App\Models\Classroom::withoutGlobalScopes()->count(),
         ];
 
+        if (request()->expectsJson()) {
+            return response()->json($institutions);
+        }
+
         return view('instituciones.index', compact('institutions', 'stats'));
     }
 
@@ -58,11 +62,15 @@ class InstitutionController extends Controller
             }
         }
 
-        Institution::create([
+        $institution = Institution::create([
             'name'      => $request->name,
             'logo_url'  => $logoUrl,
-            'is_active' => true,
+            'is_active' => $request->boolean('is_active', true),
         ]);
+
+        if ($request->expectsJson()) {
+            return response()->json($institution, 201);
+        }
 
         return back()->with('success', "Institución \"{$request->name}\" creada exitosamente.");
     }

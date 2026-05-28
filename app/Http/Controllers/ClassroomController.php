@@ -46,6 +46,10 @@ class ClassroomController extends Controller
             'can_create'     => $activePlan && $totalClassrooms < $activePlan->max_classrooms,
         ];
 
+        if (request()->expectsJson()) {
+            return response()->json($classrooms);
+        }
+
         return view('aulas.index', compact('classrooms', 'stats', 'activePlan'));
     }
 

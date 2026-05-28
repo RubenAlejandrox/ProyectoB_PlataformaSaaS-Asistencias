@@ -8,6 +8,7 @@ use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SessionKeyController;
 use App\Http\Controllers\InvitationCodeController;
 use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\JustificationController;
 use App\Http\Controllers\CycleController;
 use App\Http\Controllers\ReportController;
@@ -54,13 +55,22 @@ Route::middleware(['auth:sanctum', 'plan', 'auditoria'])->group(function () {
 
     // Student
     Route::middleware('role:Student')->group(function () {
+        Route::post('enrollments', [EnrollmentController::class, 'store']);
         Route::post('attendances', [AttendanceController::class, 'register']);
         Route::get('progress/{classroom}', [AttendanceController::class, 'progress']);
         Route::get('portal/{classroom}', [AttendanceController::class, 'portal']);
+        Route::post('justifications', [JustificationController::class, 'store']);
     });
 
-    // Teacher + Administrator
+    // Teacher — justificantes
+    Route::middleware('role:Teacher')->group(function () {
+        Route::patch('justifications/{justification}/review', [JustificationController::class, 'review'])
+            ->name('justifications.review');
+    });
+
+    // Teacher + Administrator — consulta de justificantes
     Route::middleware('role:Teacher,Administrator')->group(function () {
-        Route::apiResource('justifications', JustificationController::class);
+        Route::get('justifications/{justification}', [JustificationController::class, 'show'])
+            ->name('justifications.show');
     });
 });

@@ -16,5 +16,14 @@ class SessionKey extends Model
     }
 
     public function session() { return $this->belongsTo(Session::class); }
-    public function isExpired(): bool { return now()->gt($this->expires_at); }
+
+    public function isExpired(): bool
+    {
+        return now()->gt($this->expires_at);
+    }
+
+    public function isValid(): bool
+    {
+        return $this->is_active && !$this->isExpired();
+    }
 }
