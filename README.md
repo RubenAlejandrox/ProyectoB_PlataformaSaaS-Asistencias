@@ -544,23 +544,6 @@ Canales Reverb:
 
 ---
 
-## Pendiente (Fases 6 y 7)
-
-### Fase 6 — QA y Seguridad
-- [ ] Suite Pest con cobertura ≥ 80%
-- [ ] OWASP Top 10 (CSRF, XSS, SQL Injection, RLS)
-- [ ] Análisis N+1 con Debugbar
-- [ ] Prueba de carga 200 usuarios simultáneos
-- [ ] Endurecimiento: validaciones edge cases + mensajes UX homogéneos
-
-### Fase 7 — Despliegue
-- [ ] Nginx + PHP-FPM + SSL
-- [ ] Supabase producción
-- [ ] PayPal Live
-- [ ] GitHub Actions CI/CD
-- [ ] Acta de entrega + tag `v1.0.0`
-
----
 
 ## Licencia y Propiedad Intelectual
 
