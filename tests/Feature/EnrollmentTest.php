@@ -92,6 +92,7 @@ class EnrollmentTest extends TestCase
             'password'        => 'password123',
             'password_confirmation' => 'password123',
             'invitation_code' => 'AULA2026',
+            'privacy_accepted' => '1',
         ]);
 
         $response->assertRedirect(route('dashboard'));
@@ -105,7 +106,7 @@ class EnrollmentTest extends TestCase
             'is_active'    => true,
         ]);
 
-        $this->assertTrue($this->invitationCode->fresh()->is_used);
+        $this->assertFalse($this->invitationCode->fresh()->is_used);
     }
 
     #[Test]
@@ -141,7 +142,7 @@ class EnrollmentTest extends TestCase
             'is_active'    => true,
         ]);
 
-        $this->assertTrue($code2->fresh()->is_used);
+        $this->assertFalse($code2->fresh()->is_used);
     }
 
     #[Test]
@@ -169,5 +170,49 @@ class EnrollmentTest extends TestCase
         ]);
 
         $response->assertSessionHasErrors('invitation_code');
+    }
+
+    #[Test]
+    public function same_code_can_enroll_multiple_students_until_expiration(): void
+    {
+        $studentA = User::create([
+            'institution_id' => $this->institution->id,
+            'first_name'     => 'Ana',
+            'last_name'      => 'Multi',
+            'email'          => 'ana.multi@test.com',
+            'password_hash'  => bcrypt('password'),
+            'is_active'      => true,
+        ]);
+        $studentA->assignRole('Student');
+
+        $studentB = User::create([
+            'institution_id' => $this->institution->id,
+            'first_name'     => 'Beto',
+            'last_name'      => 'Multi',
+            'email'          => 'beto.multi@test.com',
+            'password_hash'  => bcrypt('password'),
+            'is_active'      => true,
+        ]);
+        $studentB->assignRole('Student');
+
+        $this->actingAs($studentA)->post(route('enrollments.store'), [
+            'invitation_code' => 'AULA2026',
+        ])->assertRedirect(route('dashboard'));
+
+        $this->actingAs($studentB)->post(route('enrollments.store'), [
+            'invitation_code' => 'AULA2026',
+        ])->assertRedirect(route('dashboard'));
+
+        $this->assertDatabaseHas('enrollments', [
+            'classroom_id' => $this->classroom->id,
+            'student_id'   => $studentA->id,
+            'is_active'    => true,
+        ]);
+
+        $this->assertDatabaseHas('enrollments', [
+            'classroom_id' => $this->classroom->id,
+            'student_id'   => $studentB->id,
+            'is_active'    => true,
+        ]);
     }
 }

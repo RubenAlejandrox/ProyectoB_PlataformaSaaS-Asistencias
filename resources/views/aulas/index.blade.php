@@ -178,14 +178,20 @@
                     $teacher   = $classroom->teacher;
                     $initials  = strtoupper(substr($teacher->first_name ?? 'D', 0, 1))
                                . strtoupper(substr($teacher->last_name ?? 'C', 0, 1));
+                    $latestCode = $classroom->invitationCodes
+                        ->sortByDesc('created_at')
+                        ->first();
                     $activeCode = $classroom->invitationCodes
-                        ->where('is_used', false)
                         ->where('expires_at', '>', now())
                         ->sortByDesc('created_at')
                         ->first();
                 @endphp
                 <div class="aula-card {{ !$classroom->is_active ? 'aula-card--cerrada' : '' }}"
-                     data-tab="{{ $tabStatus }}">
+                     data-tab="{{ $tabStatus }}"
+                     data-classroom-id="{{ $classroom->id }}"
+                     data-classroom-name="{{ $classroom->subject_name }}"
+                     @if($latestCode?->expires_at) data-latest-expires-at="{{ $latestCode->expires_at->toIso8601String() }}" @endif
+                     data-can-regenerate="{{ ($classroom->is_active && auth()->id() === $classroom->teacher_id) ? '1' : '0' }}">
                     <div class="aula-card-header">
                         <div class="aula-icon {{ !$classroom->is_active ? 'aula-icon--closed' : 'aula-icon--'.$color }}">
                             <i class="fas fa-chalkboard-teacher"></i>
@@ -215,9 +221,28 @@
                         <span>{{ $teacher?->first_name }} {{ $teacher?->last_name }}</span>
                     </div>
                     <div class="aula-card-footer">
-                        <span class="aula-codigo">
-                            {{ $activeCode?->code ?? 'Sin código' }}
-                        </span>
+                        <div class="aula-code-block">
+                            <div class="aula-code-row">
+                                <span class="aula-codigo">
+                                    {{ $activeCode?->code ?? 'Sin código' }}
+                                </span>
+                                @if($activeCode && auth()->id() === $classroom->teacher_id)
+                                    <button type="button"
+                                            class="btn-copy-code"
+                                            title="Copiar código de acceso"
+                                            onclick="copiarCodigo('{{ $activeCode->code }}', this)">
+                                        <i class="fas fa-copy"></i> Copiar
+                                    </button>
+                                @endif
+                            </div>
+                            <small class="code-countdown"
+                                   @if($latestCode?->expires_at) data-expires-at="{{ $latestCode->expires_at->toIso8601String() }}" @endif>
+                                {{ $latestCode ? 'Calculando tiempo...' : 'Sin código activo' }}
+                            </small>
+                            <small class="code-status {{ $activeCode ? 'code-status--active' : ($latestCode ? 'code-status--expired' : 'code-status--none') }}">
+                                {{ $activeCode ? 'Código activo para inscripciones' : ($latestCode ? 'Código expirado' : 'Aún sin código generado') }}
+                            </small>
+                        </div>
                         <div class="aula-acciones">
                             <button class="action-btn" title="Ver detalle"
                                 onclick="abrirDetalle(
@@ -291,6 +316,7 @@
                                 <th>Alumnos</th>
                                 <th>Sesiones</th>
                                 <th>Mín. Asist.</th>
+                                <th>Código y vigencia</th>
                                 <th>Ciclo</th>
                                 <th>Acciones</th>
                             </tr>
@@ -300,8 +326,10 @@
                                 @php
                                     $tabStatus = $classroom->is_active ? 'abierto' : 'cerrado';
                                     $teacher   = $classroom->teacher;
+                                    $latestCode = $classroom->invitationCodes
+                                        ->sortByDesc('created_at')
+                                        ->first();
                                     $activeCode = $classroom->invitationCodes
-                                        ->where('is_used', false)
                                         ->where('expires_at', '>', now())
                                         ->sortByDesc('created_at')
                                         ->first();
@@ -322,11 +350,38 @@
                                     <td>{{ $classroom->sessions_count }}</td>
                                     <td>{{ $classroom->min_attendance_pct }}%</td>
                                     <td>
+                                        @if($activeCode)
+                                            <span class="aula-codigo" style="display:block;font-weight:700;color:#F28B2C;letter-spacing:.1rem;">
+                                                {{ $activeCode->code }}
+                                            </span>
+                                            <span class="code-countdown"
+                                                  data-expires-at="{{ $latestCode->expires_at->toIso8601String() }}"
+                                                  style="display:block;font-size:.75rem;color:#6b7280;">Calculando tiempo...</span>
+                                            <span class="code-status" style="display:block;font-size:.72rem;color:#065f46;">Código activo</span>
+                                        @elseif($latestCode)
+                                            <span style="display:block;font-size:.75rem;color:#9ca3af;">Sin código activo</span>
+                                            <span class="code-countdown"
+                                                  data-expires-at="{{ $latestCode->expires_at->toIso8601String() }}"
+                                                  style="display:block;font-size:.75rem;color:#92400e;">Expirado</span>
+                                            <span class="code-status" style="display:block;font-size:.72rem;color:#92400e;">Último código expirado</span>
+                                        @else
+                                            <span style="font-size:.75rem;color:#9ca3af;">Sin código activo</span>
+                                        @endif
+                                    </td>
+                                    <td>
                                         <span class="status {{ $classroom->is_active ? 'status-open' : 'status-closed' }}">
                                             {{ $classroom->is_active ? 'Abierto' : 'Cerrado' }}
                                         </span>
                                     </td>
                                     <td class="action-cell">
+                                        @if($activeCode && auth()->id() === $classroom->teacher_id)
+                                            <button type="button"
+                                                class="action-btn"
+                                                title="Copiar código"
+                                                onclick="copiarCodigo('{{ $activeCode->code }}', this)">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        @endif
                                         <button class="action-btn" title="Ver detalle"
                                             onclick="abrirDetalle(
                                                 '{{ $classroom->id }}',
@@ -342,6 +397,17 @@
                                             )">
                                             <i class="fas fa-eye"></i>
                                         </button>
+                                        @if($classroom->is_active && auth()->id() === $classroom->teacher_id)
+                                            <form method="POST"
+                                                  action="{{ route('aulas.generate-code', $classroom->id) }}"
+                                                  style="display:inline"
+                                                  id="tableCodeForm-{{ $classroom->id }}">
+                                                @csrf
+                                                <button type="submit" class="action-btn" title="Regenerar código de invitación">
+                                                    <i class="fas fa-key"></i>
+                                                </button>
+                                            </form>
+                                        @endif
                                     </td>
                                 </tr>
                             @endforeach
@@ -409,12 +475,44 @@
     </div>
 </div>
 
+{{-- MODAL: REGENERAR CÓDIGO EXPIRADO --}}
+<div class="modal-overlay" id="modalRegenCode">
+    <div class="modal modal-sm">
+        <div class="modal-header">
+            <div>
+                <h3 class="modal-title">Código expirado</h3>
+                <p class="modal-subtitle" id="regenSubtitle">Aula</p>
+            </div>
+            <button class="modal-close" type="button" onclick="cerrarModal('modalRegenCode')">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p>El código de inscripción expiró. ¿Quieres regenerarlo ahora?</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline btn-md" type="button" onclick="cerrarModal('modalRegenCode')">Más tarde</button>
+            <button class="btn btn-primary btn-md" type="button" id="regenConfirmBtn">
+                <i class="fas fa-key"></i> Regenerar código
+            </button>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script>
+    let pendingRegenerateClassroomId = null;
+    const promptedExpiredCodes = new Set();
+
     // ── Modales ───────────────────────────────────────────────────────────────
     function abrirModal(id) { document.getElementById(id).classList.add('active'); }
     function cerrarModal(id){ document.getElementById(id).classList.remove('active'); }
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal('modalDetalle'); });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            cerrarModal('modalDetalle');
+            cerrarModal('modalRegenCode');
+        }
+    });
 
     // ── Tabs ──────────────────────────────────────────────────────────────────
     document.querySelectorAll('.mod-tab').forEach(tab => {
@@ -494,6 +592,62 @@
             onDone();
         }
     }
+
+    function formatCountdown(expiresAt) {
+        const ms = new Date(expiresAt).getTime() - Date.now();
+        if (Number.isNaN(ms) || ms <= 0) return 'Expirado';
+
+        const totalMinutes = Math.floor(ms / 60000);
+        const days = Math.floor(totalMinutes / (60 * 24));
+        const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+        const minutes = totalMinutes % 60;
+
+        return `${String(days).padStart(2, '0')}:${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    }
+
+    function updateCodeCountdowns() {
+        document.querySelectorAll('.code-countdown[data-expires-at]').forEach(el => {
+            const value = formatCountdown(el.dataset.expiresAt);
+            el.textContent = value === 'Expirado'
+                ? 'Expirado'
+                : `Tiempo restante ${value} (dd:hh:mm)`;
+        });
+    }
+
+    function askToRegenerateIfExpired() {
+        const cards = Array.from(document.querySelectorAll('.aula-card[data-latest-expires-at][data-can-regenerate="1"]'));
+
+        for (const card of cards) {
+            const classroomId = card.dataset.classroomId;
+            const expiresAt = card.dataset.latestExpiresAt;
+            const key = `${classroomId}:${expiresAt}`;
+            const isExpired = formatCountdown(expiresAt) === 'Expirado';
+
+            if (!isExpired || promptedExpiredCodes.has(key)) continue;
+            promptedExpiredCodes.add(key);
+
+            pendingRegenerateClassroomId = classroomId;
+            document.getElementById('regenSubtitle').textContent = card.dataset.classroomName || 'Aula';
+            abrirModal('modalRegenCode');
+            break;
+        }
+    }
+
+    document.getElementById('regenConfirmBtn')?.addEventListener('click', () => {
+        if (!pendingRegenerateClassroomId) return;
+        const form = document.getElementById(`codeForm-${pendingRegenerateClassroomId}`);
+        const tableForm = document.getElementById(`tableCodeForm-${pendingRegenerateClassroomId}`);
+        if (form) {
+            form.submit();
+            return;
+        }
+        if (tableForm) tableForm.submit();
+    });
+
+    updateCodeCountdowns();
+    askToRegenerateIfExpired();
+    setInterval(updateCodeCountdowns, 30000);
+    setInterval(askToRegenerateIfExpired, 30000);
 </script>
 @endpush
 

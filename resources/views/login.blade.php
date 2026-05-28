@@ -285,13 +285,24 @@
                 </div>
 
                 <div class="form-group">
-                    <div class="checkbox-wrapper" onclick="toggleCheckbox(this)">
-                        <div class="checkbox"><i class="fas fa-check"></i></div>
+                    <label class="checkbox-wrapper" for="privacyAccepted">
+                        <div class="checkbox {{ old('privacy_accepted') ? 'checked' : '' }}"><i class="fas fa-check"></i></div>
+                        <input type="checkbox"
+                               id="privacyAccepted"
+                               name="privacy_accepted"
+                               value="1"
+                               style="display:none"
+                               {{ old('privacy_accepted') ? 'checked' : '' }}>
                         <span class="checkbox-label">
                             Acepto los <a href="{{ route('terms') }}">Términos de Servicio</a>
-                            y la <a href="{{ route('privacy') }}">Política de Privacidad</a>
+                            y el <a href="{{ route('privacy') }}">Aviso de Privacidad</a>
                         </span>
-                    </div>
+                    </label>
+                    @error('privacy_accepted')
+                        <div style="margin-top:.4rem;color:#DC3545;font-size:.85rem;">
+                            {{ $message }}
+                        </div>
+                    @enderror
                 </div>
 
                 <button type="submit" class="btn btn-primary btn-lg">
@@ -354,8 +365,23 @@
             updatePasswordStrength('registerPassword');
         });
 
+        const privacyAccepted = document.getElementById('privacyAccepted');
+        if (privacyAccepted) {
+            const privacyBox = privacyAccepted.closest('.checkbox-wrapper')?.querySelector('.checkbox');
+            const syncPrivacyBox = () => privacyBox?.classList.toggle('checked', privacyAccepted.checked);
+            privacyAccepted.addEventListener('change', syncPrivacyBox);
+            syncPrivacyBox();
+        }
+
         // ── Checkbox toggle ──────────────────────────────────────────────────
         function toggleCheckbox(wrapper) {
+            const checkbox = wrapper.querySelector('input[type="checkbox"]');
+            if (checkbox) {
+                checkbox.checked = !checkbox.checked;
+                wrapper.querySelector('.checkbox').classList.toggle('checked', checkbox.checked);
+                return;
+            }
+
             wrapper.querySelector('.checkbox').classList.toggle('checked');
         }
 

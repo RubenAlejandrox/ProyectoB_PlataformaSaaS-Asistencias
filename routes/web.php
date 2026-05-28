@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\ClassroomController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InstitutionController;
@@ -61,6 +62,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/admin/edicion', function () {
         return view('admin.edicion');
     })->name('admin.edicion');
+    Route::get('/admin/bitacora', [AuditLogController::class, 'index'])
+        ->middleware('role:Administrator')
+        ->name('bitacora.index');
+    Route::get('/admin/bitacora/export', [AuditLogController::class, 'exportCsv'])
+        ->middleware('role:Administrator')
+        ->name('bitacora.export');
 
     // ── Aulas ─────────────────────────────────────────────────────────────
     Route::get('/aulas',                            [ClassroomController::class, 'index'])->name('aulas.index');

@@ -16,10 +16,13 @@ class InvitationCodeController extends Controller
             abort(403);
         }
 
-        // Invalidar códigos anteriores no usados
+        // Invalidar códigos activos anteriores al regenerar
         InvitationCode::where('classroom_id', $classroom->id)
-            ->where('is_used', false)
-            ->update(['is_used' => true]);
+            ->where('expires_at', '>', now())
+            ->update([
+                'expires_at' => now(),
+                'is_used'    => true,
+            ]);
 
         do {
             $code = strtoupper(Str::random(8));
@@ -43,7 +46,6 @@ class InvitationCodeController extends Controller
     public function active(Classroom $classroom): JsonResponse
     {
         $code = InvitationCode::where('classroom_id', $classroom->id)
-            ->where('is_used', false)
             ->where('expires_at', '>', now())
             ->latest()
             ->first();

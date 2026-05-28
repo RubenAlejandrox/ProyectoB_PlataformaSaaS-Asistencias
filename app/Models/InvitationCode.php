@@ -24,6 +24,6 @@ class InvitationCode extends Model
 
     public function isValid(): bool
     {
-        return !$this->is_used && !$this->isExpired();
+        return !$this->isExpired();
     }
 }

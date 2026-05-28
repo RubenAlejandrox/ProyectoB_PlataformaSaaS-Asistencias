@@ -140,10 +140,12 @@ class AuthController extends Controller
             'role'            => 'required|in:Teacher,Student',
             'password'        => 'required|string|min:8|confirmed',
             'invitation_code' => 'nullable|string',
+            'privacy_accepted' => 'accepted',
         ], [
             'email.unique'       => 'Este correo ya está registrado.',
             'password.min'       => 'La contraseña debe tener al menos 8 caracteres.',
             'password.confirmed' => 'Las contraseñas no coinciden.',
+            'privacy_accepted.accepted' => 'Debes aceptar el Aviso de Privacidad para registrarte.',
         ]);
 
         $institutionId   = null;

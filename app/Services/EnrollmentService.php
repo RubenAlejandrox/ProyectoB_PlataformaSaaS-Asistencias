@@ -12,7 +12,7 @@ class EnrollmentService
 {
     /**
      * Inscribe a un alumno en el aula del código de invitación.
-     * Marca el código como usado y sincroniza institution_id del alumno.
+     * El código de aula es reutilizable hasta su expiración.
      *
      * @throws \RuntimeException
      */
@@ -67,8 +67,6 @@ class EnrollmentService
                 $student->update(['institution_id' => $classroom->institution_id]);
             }
 
-            $invitationCode->update(['is_used' => true]);
-
             return $enrollment;
         });
     }
@@ -78,7 +76,6 @@ class EnrollmentService
         return InvitationCode::withoutGlobalScopes()
             ->with('classroom')
             ->where('code', strtoupper(trim($code)))
-            ->where('is_used', false)
             ->where('expires_at', '>', now())
             ->first();
     }

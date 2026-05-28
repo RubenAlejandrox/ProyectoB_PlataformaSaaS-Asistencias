@@ -149,10 +149,13 @@ class ClassroomController extends Controller
             abort(403);
         }
 
-        // Invalidar códigos anteriores no usados
+        // Invalidar códigos activos anteriores al regenerar
         $classroom->invitationCodes()
-            ->where('is_used', false)
-            ->update(['is_used' => true]);
+            ->where('expires_at', '>', now())
+            ->update([
+                'expires_at' => now(),
+                'is_used'    => true,
+            ]);
 
         $code = $this->generateInvitationCode($classroom);
 

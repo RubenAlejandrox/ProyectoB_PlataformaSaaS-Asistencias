@@ -103,6 +103,13 @@
                 <i class="fas fa-user-edit nav-icon"></i>
                 <span class="nav-text">Edición Admin</span>
             </a>
+
+            <a href="{{ route('bitacora.index') }}"
+               class="nav-item {{ request()->routeIs('bitacora.*') ? 'active' : '' }}"
+               data-tooltip="Bitácora de Auditoría">
+                <i class="fas fa-clipboard-list nav-icon"></i>
+                <span class="nav-text">Bitácora Auditoría</span>
+            </a>
         </div>
 
         <div class="nav-section">
@@ -213,9 +220,10 @@
         {{-- Logout con POST correcto --}}
         <form method="POST" action="{{ route('auth.logout') }}" id="logoutForm">
             @csrf
-            <button type="submit"
+            <button type="button"
                     class="nav-item logout"
                     style="width:100%; background:none; border:none; cursor:pointer; text-align:left;"
+                    id="logoutButton"
                     data-tooltip="Cerrar sesión">
                 <i class="fas fa-sign-out-alt nav-icon"></i>
                 <span class="nav-text">Cerrar sesión</span>
@@ -224,6 +232,29 @@
     </div>
 
 </aside>
+
+<div class="modal-overlay" id="logoutConfirmModal">
+    <div class="modal modal-sm">
+        <div class="modal-header">
+            <div>
+                <h3 class="modal-title">Cerrar sesión</h3>
+                <p class="modal-subtitle">Confirmación</p>
+            </div>
+            <button type="button" class="modal-close" id="logoutCancelTop">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p>¿Estás seguro que quieres cerrar sesión?</p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-outline btn-md" id="logoutCancel">Cancelar</button>
+            <button type="button" class="btn btn-danger btn-md" id="logoutConfirm">
+                <i class="fas fa-sign-out-alt"></i> Sí, cerrar sesión
+            </button>
+        </div>
+    </div>
+</div>
 
 <script>
     // Mobile menu toggle
@@ -248,5 +279,23 @@
         if (item.href && item.href === window.location.href) {
             item.classList.add('active');
         }
+    });
+
+    const logoutButton = document.getElementById('logoutButton');
+    const logoutModal = document.getElementById('logoutConfirmModal');
+    const logoutConfirm = document.getElementById('logoutConfirm');
+    const logoutCancel = document.getElementById('logoutCancel');
+    const logoutCancelTop = document.getElementById('logoutCancelTop');
+    const logoutForm = document.getElementById('logoutForm');
+
+    const openLogoutModal = () => logoutModal?.classList.add('active');
+    const closeLogoutModal = () => logoutModal?.classList.remove('active');
+
+    logoutButton?.addEventListener('click', openLogoutModal);
+    logoutCancel?.addEventListener('click', closeLogoutModal);
+    logoutCancelTop?.addEventListener('click', closeLogoutModal);
+
+    logoutConfirm?.addEventListener('click', () => {
+        logoutForm?.submit();
     });
 </script>
