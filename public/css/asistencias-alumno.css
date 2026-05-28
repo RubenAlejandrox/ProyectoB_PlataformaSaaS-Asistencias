@@ -635,3 +635,29 @@ Paleta Institucional Azul Corporativo
     .clave-char { width: 38px; height: 48px; font-size: 18px; }
     .search-input { width: 140px; }
 }
+
+/* Progreso por materia + semáforo */
+.materia-progreso { margin-bottom: 1.25rem; }
+.materia-progreso:last-child { margin-bottom: 0; }
+.materia-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: .4rem;
+    font-weight: 600;
+    color: var(--deep-blue);
+}
+.semaforo { font-size: .75rem; }
+.semaforo-verde { color: #28a745; }
+.semaforo-ambar { color: #f59e0b; }
+.semaforo-rojo { color: #dc3545; }
+.progreso-barra.progreso-ok { background: #28a745; }
+.progreso-barra.progreso-warning { background: #f59e0b; }
+.progreso-barra.progreso-risk { background: #dc3545; }
+.progreso-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: .8rem;
+    color: var(--soft-steel);
+    margin-top: .35rem;
+}

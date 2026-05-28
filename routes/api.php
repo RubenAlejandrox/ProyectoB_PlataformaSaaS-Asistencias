@@ -48,6 +48,7 @@ Route::middleware(['auth:sanctum', 'plan', 'auditoria'])->group(function () {
         Route::apiResource('sessions', SessionController::class)->parameters(['sessions' => 'session']);
         Route::post('classrooms/{classroom}/invitation-codes', [InvitationCodeController::class, 'store']);
         Route::post('sessions/{session}/keys', [SessionKeyController::class, 'store']);
+        Route::post('sessions/{session}/close', [SessionController::class, 'close']);
         Route::post('cycles/{cycle}/close', [CycleController::class, 'close']);
         Route::get('reports/matrix/{classroom}', [ReportController::class, 'matrix']);
         Route::get('reports/monthly/{classroom}', [ReportController::class, 'monthly']);

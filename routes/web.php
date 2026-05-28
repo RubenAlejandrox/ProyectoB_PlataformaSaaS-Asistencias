@@ -9,6 +9,8 @@ use App\Http\Controllers\InvitationCodeController;
 use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\JustificationController;
 use App\Http\Controllers\SubscriptionController;
+use App\Http\Controllers\AttendanceWebController;
+use App\Http\Controllers\AdminSessionController;
 
 
 use Illuminate\Support\Facades\Route;
@@ -68,6 +70,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/admin/bitacora/export', [AuditLogController::class, 'exportCsv'])
         ->middleware('role:Administrator')
         ->name('bitacora.export');
+    Route::get('/admin/sesiones', [AdminSessionController::class, 'index'])
+        ->middleware('role:Administrator')
+        ->name('admin.sesiones.index');
+    Route::post('/admin/sesiones/{session}/clave-asistencia', [AdminSessionController::class, 'generateAttendanceKey'])
+        ->middleware('role:Administrator')
+        ->name('admin.sesiones.attendance-key');
 
     // ── Aulas ─────────────────────────────────────────────────────────────
     Route::get('/aulas',                            [ClassroomController::class, 'index'])->name('aulas.index');
@@ -84,14 +92,24 @@ Route::middleware(['auth'])->group(function () {
         return view('ciclo.cierre');
     })->name('ciclo.cierre');
 
-    // Sistema Analítico de Asistencias y Reportes
-    Route::get('/asistencias/docente', function () {
-        return view('asistencias.docente');
-    })->name('asistencias.docente');
+    // Sistema Analítico de Asistencias
+    Route::middleware('role:Teacher')->group(function () {
+        Route::get('/asistencias/docente', [AttendanceWebController::class, 'teacherIndex'])
+            ->name('asistencias.docente');
+        Route::post('/asistencias/docente/sesion', [AttendanceWebController::class, 'openSession'])
+            ->name('asistencias.docente.sesion');
+        Route::post('/asistencias/docente/sesiones/{session}/clave', [AttendanceWebController::class, 'generateKey'])
+            ->name('asistencias.docente.clave');
+        Route::post('/asistencias/docente/sesiones/{session}/cerrar', [AttendanceWebController::class, 'closeSession'])
+            ->name('asistencias.docente.cerrar');
+    });
 
-    Route::get('/asistencias/alumno', function () {
-        return view('asistencias.alumno');
-    })->name('asistencias.alumno');
+    Route::middleware('role:Student')->group(function () {
+        Route::get('/asistencias/alumno', [AttendanceWebController::class, 'studentIndex'])
+            ->name('asistencias.alumno');
+        Route::post('/asistencias/alumno/registrar', [AttendanceWebController::class, 'register'])
+            ->name('asistencias.alumno.registrar');
+    });
 
     Route::post('/inscripciones', [EnrollmentController::class, 'storeWeb'])->name('enrollments.store');
 

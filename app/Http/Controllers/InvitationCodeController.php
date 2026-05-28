@@ -12,7 +12,12 @@ class InvitationCodeController extends Controller
     // ── store — generar nuevo código para un aula ─────────────────────────────
     public function store(Classroom $classroom)
     {
-        if (auth()->id() !== $classroom->teacher_id) {
+        $user = auth()->user();
+
+        $canGenerate = ((string) $user->id === (string) $classroom->teacher_id)
+            || ($user->hasRole('Administrator') && (string) $user->institution_id === (string) $classroom->institution_id);
+
+        if (!$canGenerate) {
             abort(403);
         }
 

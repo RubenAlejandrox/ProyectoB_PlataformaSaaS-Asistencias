@@ -110,6 +110,13 @@
                 <i class="fas fa-clipboard-list nav-icon"></i>
                 <span class="nav-text">Bitácora Auditoría</span>
             </a>
+
+            <a href="{{ route('admin.sesiones.index') }}"
+               class="nav-item {{ request()->routeIs('admin.sesiones.*') ? 'active' : '' }}"
+               data-tooltip="Sesiones para Pruebas">
+                <i class="fas fa-calendar-alt nav-icon"></i>
+                <span class="nav-text">Sesiones (Pruebas)</span>
+            </a>
         </div>
 
         <div class="nav-section">

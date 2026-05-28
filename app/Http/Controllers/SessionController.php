@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Attendance;
 use App\Models\Classroom;
+use App\Models\Enrollment;
 use App\Models\Session;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class SessionController extends Controller
 {
@@ -95,6 +98,53 @@ class SessionController extends Controller
         return response()->json([
             'message' => 'Sesión actualizada.',
             'data'    => $session->fresh(),
+        ]);
+    }
+
+    // ── close — cerrar sesión y marcar faltas ─────────────────────────────────
+    public function close(Session $session): JsonResponse
+    {
+        $this->authorizeTeacherSession($session);
+
+        if (!$session->is_active) {
+            return response()->json([
+                'message' => 'La sesión ya está cerrada.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($session) {
+            $session->sessionKeys()
+                ->where('is_active', true)
+                ->update(['is_active' => false]);
+
+            $enrolledIds = Enrollment::withoutGlobalScopes()
+                ->where('classroom_id', $session->classroom_id)
+                ->where('is_active', true)
+                ->pluck('student_id');
+
+            $registeredIds = Attendance::withoutGlobalScopes()
+                ->where('session_id', $session->id)
+                ->pluck('student_id');
+
+            foreach ($enrolledIds->diff($registeredIds) as $studentId) {
+                Attendance::create([
+                    'session_id' => $session->id,
+                    'student_id' => $studentId,
+                    'status'     => 'absent',
+                ]);
+            }
+
+            $session->update([
+                'is_active' => false,
+                'ended_at'  => now()->format('H:i:s'),
+            ]);
+        });
+
+        $session->load(['classroom', 'attendances.student']);
+
+        return response()->json([
+            'message' => 'Sesión cerrada. Faltas registradas para alumnos sin asistencia.',
+            'data'    => $session->fresh(['classroom', 'attendances']),
         ]);
     }
 

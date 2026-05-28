@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Events\AttendanceRegistered;
 use App\Models\Attendance;
 use App\Models\Classroom;
+use Illuminate\Support\Facades\Event;
 use App\Models\Enrollment;
 use App\Models\Institution;
 use App\Models\Plan;
@@ -30,6 +32,8 @@ class AttendanceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Event::fake([AttendanceRegistered::class]);
 
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
@@ -119,7 +123,10 @@ class AttendanceTest extends TestCase
             ]);
 
         $response->assertStatus(201)
-            ->assertJsonPath('data.status', 'present');
+            ->assertJsonPath('data.status', 'present')
+            ->assertJsonStructure(['progress' => ['attendance_pct', 'light']]);
+
+        Event::assertDispatched(AttendanceRegistered::class);
 
         $this->assertDatabaseHas('attendances', [
             'session_id' => $this->session->id,
@@ -183,5 +190,70 @@ class AttendanceTest extends TestCase
             ->assertJsonFragment(['message' => 'No estás inscrito en el aula de esta sesión.']);
 
         $this->assertDatabaseCount('attendances', 0);
+    }
+
+    #[Test]
+    public function progress_endpoint_uses_present_and_approved(): void
+    {
+        $this->session->delete();
+
+        for ($i = 0; $i < 5; $i++) {
+            $session = Session::create([
+                'classroom_id' => $this->classroom->id,
+                'session_date' => now()->subDays($i)->toDateString(),
+                'started_at'   => '08:00:00',
+                'is_active'    => false,
+            ]);
+            if ($i < 3) {
+                Attendance::create([
+                    'session_id' => $session->id,
+                    'student_id' => $this->student->id,
+                    'status'     => 'present',
+                ]);
+            }
+        }
+
+        $response = $this->actingAs($this->student)
+            ->getJson('/api/progress/'.$this->classroom->id);
+
+        $response->assertOk()
+            ->assertJsonPath('attendance_pct', 60)
+            ->assertJsonPath('light', 'red');
+    }
+
+    #[Test]
+    public function session_key_respects_duration_minutes(): void
+    {
+        $response = $this->actingAs($this->teacher)
+            ->postJson('/api/sessions/'.$this->session->id.'/keys', [
+                'duration_minutes' => 30,
+            ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.duration_minutes', 30);
+
+        $key = SessionKey::where('session_id', $this->session->id)
+            ->where('is_active', true)
+            ->latest()
+            ->first();
+
+        $this->assertTrue($key->expires_at->between(now()->addMinutes(29), now()->addMinutes(31)));
+    }
+
+    #[Test]
+    public function close_session_marks_absents(): void
+    {
+        $response = $this->actingAs($this->teacher)
+            ->postJson('/api/sessions/'.$this->session->id.'/close');
+
+        $response->assertOk();
+
+        $this->assertDatabaseHas('attendances', [
+            'session_id' => $this->session->id,
+            'student_id' => $this->student->id,
+            'status'     => 'absent',
+        ]);
+
+        $this->assertFalse($this->session->fresh()->is_active);
     }
 }

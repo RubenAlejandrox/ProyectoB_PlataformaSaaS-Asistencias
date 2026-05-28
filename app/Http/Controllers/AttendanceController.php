@@ -2,14 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\AttendanceRegistered;
 use App\Models\Attendance;
 use App\Models\Enrollment;
 use App\Models\SessionKey;
+use App\Services\AttendanceProgressService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AttendanceController extends Controller
 {
+    public function __construct(
+        private AttendanceProgressService $progressService
+    ) {}
+
     // ── register — alumno registra asistencia con clave de sesión ─────────────
     public function register(Request $request): JsonResponse
     {
@@ -64,15 +70,24 @@ class AttendanceController extends Controller
             ], 409);
         }
 
+        $progressBefore = $this->progressService->calculate($studentId, $classroomId);
+        $previousLight  = $progressBefore['light'];
+
         $attendance = Attendance::create([
-            'session_id'  => $session->id,
-            'student_id'  => $studentId,
-            'status'      => 'present',
+            'session_id' => $session->id,
+            'student_id' => $studentId,
+            'status'     => 'present',
         ]);
+
+        event(new AttendanceRegistered($attendance, $classroomId));
+        $this->progressService->dispatchTrafficLightIfChanged($studentId, $classroomId, $previousLight);
+
+        $progress = $this->progressService->calculate($studentId, $classroomId);
 
         return response()->json([
             'message' => 'Asistencia registrada.',
             'data'    => $attendance,
+            'progress'=> $progress,
         ], 201);
     }
 
@@ -81,38 +96,15 @@ class AttendanceController extends Controller
     {
         $studentId = auth()->user()->id;
 
-        $enrolled = Enrollment::withoutGlobalScopes()
-            ->where('classroom_id', $classroomId)
-            ->where('student_id', $studentId)
-            ->where('is_active', true)
-            ->exists();
-
-        if (!$enrolled) {
+        if (!$this->isEnrolled($studentId, $classroomId)) {
             return response()->json([
                 'message' => 'No estás inscrito en esta aula.',
             ], 403);
         }
 
-        $totalSessions = \App\Models\Session::withoutGlobalScopes()
-            ->where('classroom_id', $classroomId)
-            ->count();
-
-        $presentCount = Attendance::withoutGlobalScopes()
-            ->where('student_id', $studentId)
-            ->where('status', 'present')
-            ->whereHas('session', fn ($q) => $q->where('classroom_id', $classroomId))
-            ->count();
-
-        $pct = $totalSessions > 0
-            ? round(($presentCount / $totalSessions) * 100, 1)
-            : 0;
-
-        return response()->json([
-            'classroom_id'     => $classroomId,
-            'total_sessions'   => $totalSessions,
-            'present_count'    => $presentCount,
-            'attendance_pct'   => $pct,
-        ]);
+        return response()->json(
+            $this->progressService->calculate($studentId, $classroomId)
+        );
     }
 
     // ── portal — historial de asistencias del alumno en un aula ───────────────
@@ -120,25 +112,33 @@ class AttendanceController extends Controller
     {
         $studentId = auth()->user()->id;
 
-        $enrolled = Enrollment::withoutGlobalScopes()
-            ->where('classroom_id', $classroomId)
-            ->where('student_id', $studentId)
-            ->where('is_active', true)
-            ->exists();
-
-        if (!$enrolled) {
+        if (!$this->isEnrolled($studentId, $classroomId)) {
             return response()->json([
                 'message' => 'No estás inscrito en esta aula.',
             ], 403);
         }
 
         $attendances = Attendance::withoutGlobalScopes()
-            ->with('session:id,classroom_id,session_date')
+            ->with(['session:id,classroom_id,session_date', 'justification'])
             ->where('student_id', $studentId)
             ->whereHas('session', fn ($q) => $q->where('classroom_id', $classroomId))
             ->orderByDesc('created_at')
             ->get();
 
-        return response()->json(['data' => $attendances]);
+        $progress = $this->progressService->calculate($studentId, $classroomId);
+
+        return response()->json([
+            'progress'    => $progress,
+            'attendances' => $attendances,
+        ]);
+    }
+
+    private function isEnrolled(string $studentId, string $classroomId): bool
+    {
+        return Enrollment::withoutGlobalScopes()
+            ->where('classroom_id', $classroomId)
+            ->where('student_id', $studentId)
+            ->where('is_active', true)
+            ->exists();
     }
 }
