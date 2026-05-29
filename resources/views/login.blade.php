@@ -44,10 +44,13 @@
             <div class="branding-logo">
                 <img src="{{ asset('img/gama-logo.png') }}" alt="G.A.M.A Solutions" class="logo-image">
             </div>
+            <h2 class="branding-title">Proyecto B: Control de Asistencias</h2>
+
             <h1 class="branding-title">"El factor de cambio en tu tecnología"</h1>
             <p class="branding-subtitle">
                 Sistemas modulares diseñados para evolucionar al ritmo de su demanda
             </p>
+            
             <div class="branding-features">
                 <div class="branding-feature">
                     <div class="feature-icon"><i class="fas fa-shield-alt"></i></div>
@@ -179,11 +182,18 @@
                             <i class="fas fa-user input-icon"></i>
                             <input type="text"
                                    name="first_name"
+                                   id="registerFirstName"
                                    class="form-input"
                                    placeholder="Nombre(s)"
                                    value="{{ old('first_name') }}"
+                                   pattern="^[\p{L}]+(?:[\s'-][\p{L}]+)*$"
+                                   title="Solo letras, espacios, guiones o apóstrofes"
+                                   autocomplete="given-name"
                                    required>
                         </div>
+                        @error('first_name')
+                            <div style="margin-top:.35rem;color:#DC3545;font-size:.85rem;">{{ $message }}</div>
+                        @enderror
                     </div>
                     <div class="form-group">
                         <label class="form-label">Apellido(s)</label>
@@ -191,11 +201,18 @@
                             <i class="fas fa-user input-icon"></i>
                             <input type="text"
                                    name="last_name"
+                                   id="registerLastName"
                                    class="form-input"
                                    placeholder="Apellido(s)"
                                    value="{{ old('last_name') }}"
+                                   pattern="^[\p{L}]+(?:[\s'-][\p{L}]+)*$"
+                                   title="Solo letras, espacios, guiones o apóstrofes"
+                                   autocomplete="family-name"
                                    required>
                         </div>
+                        @error('last_name')
+                            <div style="margin-top:.35rem;color:#DC3545;font-size:.85rem;">{{ $message }}</div>
+                        @enderror
                     </div>
                 </div>
 
@@ -398,8 +415,8 @@
             if (role === 'Student') {
                 group.style.display = 'block';
                 label.firstChild.nodeValue = 'Código de aula ';
-                hint.textContent = '(opcional)';
-                input.placeholder = 'Código del aula';
+                hint.textContent = '(opcional — puedes unirte después en Mis Aulas)';
+                input.placeholder = 'Código del docente';
             } else if (role === 'Teacher') {
                 group.style.display = 'block';
                 label.firstChild.nodeValue = 'Código de institución ';
@@ -418,6 +435,42 @@
         document.addEventListener('DOMContentLoaded', function () {
             const sel = document.getElementById('roleSelect');
             if (sel && sel.value) applyInvitationContext(sel.value);
+        });
+
+        // ── Validación de nombres (sin números ni vacíos) ─────────────────────
+        const namePattern = /^[\p{L}]+(?:[\s'-][\p{L}]+)*$/u;
+
+        function validateRegisterNames() {
+            const first = document.getElementById('registerFirstName');
+            const last  = document.getElementById('registerLastName');
+            if (!first || !last) return true;
+
+            const values = [
+                { input: first, label: 'nombre' },
+                { input: last, label: 'apellido' },
+            ];
+
+            for (const { input, label } of values) {
+                const value = input.value.trim();
+                if (!value) {
+                    alert(`El ${label} no puede estar vacío.`);
+                    input.focus();
+                    return false;
+                }
+                if (/\d/.test(value) || !namePattern.test(value)) {
+                    alert(`El ${label} solo puede contener letras, espacios, guiones o apóstrofes.`);
+                    input.focus();
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        document.getElementById('registerForm')?.addEventListener('submit', function (e) {
+            if (!validateRegisterNames()) {
+                e.preventDefault();
+            }
         });
 
         // ── Si hay errores del register, abrir ese tab automáticamente ───────

@@ -78,32 +78,68 @@
         </div>
     @else
 
+    <div class="card card--registro registro-asistencia-hero">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-key"></i> Registrar asistencia</h3>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ route('asistencias.alumno.registrar') }}" id="formClave" class="registro-form">
+                @csrf
+                <p class="registro-desc">
+                    Ingresa la clave de <strong>8 caracteres</strong> que tu docente proyectó en clase.
+                </p>
+                <div class="clave-inputs-wrap" role="group" aria-label="Clave de asistencia de 8 caracteres">
+                    <div class="clave-inputs">
+                        @for($i = 1; $i <= 4; $i++)
+                            <input class="clave-char"
+                                   type="text"
+                                   inputmode="text"
+                                   maxlength="1"
+                                   name="c{{ $i }}"
+                                   id="c{{ $i }}"
+                                   autocomplete="off"
+                                   autocapitalize="characters"
+                                   spellcheck="false"
+                                   aria-label="Carácter {{ $i }} de 8"
+                                   x-ref="c{{ $i }}"
+                                   @input="onInput($event, {{ $i }})"
+                                   @keydown="onKeydown($event, {{ $i }})"
+                                   @paste="onPaste($event)">
+                        @endfor
+                    </div>
+                    <span class="clave-grupo-sep" aria-hidden="true"></span>
+                    <div class="clave-inputs">
+                        @for($i = 5; $i <= 8; $i++)
+                            <input class="clave-char"
+                                   type="text"
+                                   inputmode="text"
+                                   maxlength="1"
+                                   name="c{{ $i }}"
+                                   id="c{{ $i }}"
+                                   autocomplete="off"
+                                   autocapitalize="characters"
+                                   spellcheck="false"
+                                   aria-label="Carácter {{ $i }} de 8"
+                                   x-ref="c{{ $i }}"
+                                   @input="onInput($event, {{ $i }})"
+                                   @keydown="onKeydown($event, {{ $i }})"
+                                   @paste="onPaste($event)">
+                        @endfor
+                    </div>
+                </div>
+                <input type="hidden" name="access_key" x-model="claveCompleta">
+                <p class="clave-hint" x-text="hint" x-show="claveCompleta.length < 8"></p>
+                <div class="registro-actions">
+                    <button type="submit" class="btn btn-primary btn-lg" :disabled="claveCompleta.length !== 8">
+                        <i class="fas fa-paper-plane"></i> Registrar asistencia
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="panel-grid">
         <div class="panel-left">
-
-            <div class="card card--registro">
-                <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-key"></i> Registrar Asistencia</h3>
-                </div>
-                <div class="card-body">
-                    <form method="POST" action="{{ route('asistencias.alumno.registrar') }}" id="formClave">
-                        @csrf
-                        <p class="registro-desc">Ingresa la clave de 8 caracteres que tu docente proyectó en clase.</p>
-                        <div class="clave-inputs">
-                            @for($i = 1; $i <= 8; $i++)
-                                <input class="clave-char" type="text" maxlength="1" name="c{{ $i }}"
-                                       id="c{{ $i }}" autocomplete="off"
-                                       x-ref="c{{ $i }}" @input="onInput($event, {{ $i }})" @keydown="onKeydown($event, {{ $i }})">
-                            @endfor
-                        </div>
-                        <input type="hidden" name="access_key" x-model="claveCompleta">
-                        <p class="clave-hint" x-text="hint"></p>
-                        <button type="submit" class="btn btn-primary btn-lg btn-full" :disabled="claveCompleta.length !== 8">
-                            <i class="fas fa-paper-plane"></i> Registrar asistencia
-                        </button>
-                    </form>
-                </div>
-            </div>
 
             <div class="card">
                 <div class="card-header">
@@ -311,6 +347,30 @@ function alumnoAsistencias() {
             if (e.key === 'Backspace' && !e.target.value && idx > 1) {
                 this.$refs['c' + (idx - 1)]?.focus();
             }
+            if (e.key === 'ArrowLeft' && idx > 1) {
+                e.preventDefault();
+                this.$refs['c' + (idx - 1)]?.focus();
+            }
+            if (e.key === 'ArrowRight' && idx < 8) {
+                e.preventDefault();
+                this.$refs['c' + (idx + 1)]?.focus();
+            }
+        },
+
+        onPaste(e) {
+            e.preventDefault();
+            const text = (e.clipboardData?.getData('text') || '')
+                .toUpperCase()
+                .replace(/[^A-Z0-9]/g, '')
+                .slice(0, 8);
+            if (!text) return;
+            for (let i = 0; i < 8; i++) {
+                const input = this.$refs['c' + (i + 1)];
+                if (input) input.value = text[i] || '';
+            }
+            const focusIdx = Math.min(text.length, 8);
+            this.$refs['c' + focusIdx]?.focus();
+            this.syncClave();
         },
 
         syncClave() {

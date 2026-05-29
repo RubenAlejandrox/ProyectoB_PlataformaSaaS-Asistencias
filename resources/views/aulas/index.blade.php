@@ -31,15 +31,17 @@
 @endpush
 
 @section('content')
+@php $isStudent = auth()->user()->hasRole('Student'); @endphp
 <div class="main-content">
 
     {{-- PAGE HEADER --}}
     <div class="page-header">
         <div class="header-content">
             <div class="header-text">
-                <h1>Aulas</h1>
-                <p>Gestión de aulas y grupos de la institución</p>
+                <h1>{{ $isStudent ? 'Mis Aulas' : 'Aulas' }}</h1>
+                <p>{{ $isStudent ? 'Consulta las aulas en las que estás inscrito' : 'Gestión de aulas y grupos de la institución' }}</p>
             </div>
+            @unless($isStudent)
             <div class="header-actions">
                 @if($stats['can_create'])
                     <a href="{{ route('aulas.create') }}" class="btn btn-primary btn-md">
@@ -55,6 +57,15 @@
                     </button>
                 @endif
             </div>
+            @endunless
+            @if($isStudent)
+            <div class="header-actions">
+                <button type="button" class="btn btn-primary btn-md" onclick="abrirModal('modalInscripcionAlumno')">
+                    <i class="fas fa-key"></i>
+                    Unirme a un aula
+                </button>
+            </div>
+            @endif
         </div>
     </div>
 
@@ -70,8 +81,21 @@
         </div>
     @endif
 
+    @if($isStudent && $classrooms->isEmpty())
+        <div style="display:flex;align-items:flex-start;gap:.75rem;background:#EAF3FB;border:1px solid #134474;border-left:4px solid #134474;border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.2rem;color:#134474;">
+            <i class="fas fa-info-circle" style="font-size:1.25rem;margin-top:.1rem;"></i>
+            <div>
+                <p style="font-weight:700;margin:0 0 .35rem;">Aún no perteneces a ningún aula</p>
+                <p style="margin:0;font-size:.9rem;line-height:1.5;">
+                    Pide el código de invitación a tu docente y únete aquí.
+                    Al inscribirte, tu cuenta quedará vinculada a la institución del aula.
+                </p>
+            </div>
+        </div>
+    @endif
+
     {{-- BANNER: CÓDIGO DE INVITACIÓN GENERADO --}}
-    @if(session('invitation_code'))
+    @if(!$isStudent && session('invitation_code'))
         @php $ic = session('invitation_code'); @endphp
         <div style="display:flex;align-items:center;gap:1rem;background:#EAF3FB;border:1px solid #134474;border-left:4px solid #134474;border-radius:8px;padding:1rem 1.5rem;margin-bottom:1.2rem;">
             <i class="fas fa-key" style="color:#134474;font-size:1.5rem;"></i>
@@ -89,6 +113,7 @@
     @endif
 
     {{-- LÍMITE DEL PLAN --}}
+    @unless($isStudent)
     @if($activePlan)
         <div style="display:flex;align-items:center;gap:.5rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.6rem 1rem;margin-bottom:1.2rem;font-size:.85rem;color:#555;flex-wrap:wrap;">
             <i class="fas fa-info-circle" style="color:#134474;"></i>
@@ -107,6 +132,7 @@
             <span>Tu institución no tiene un plan activo. <a href="{{ route('membresias.index') }}" style="color:#92400e;font-weight:600;text-decoration:underline;">Contrata uno</a> para crear aulas.</span>
         </div>
     @endif
+    @endunless
 
     {{-- KPI CARDS --}}
     <div class="kpi-grid">
@@ -140,6 +166,7 @@
         </div>
     </div>
 
+    @unless($isStudent)
     {{-- TABS --}}
     <div class="mod-tabs">
         <button class="mod-tab active" data-tab="todas">
@@ -166,6 +193,7 @@
             <input type="text" class="search-input" placeholder="Buscar aula..." id="buscarAula">
         </div>
     </div>
+    @endunless
 
     {{-- VISTA TARJETAS --}}
     <div id="vistaGrid">
@@ -221,6 +249,7 @@
                         <span>{{ $teacher?->first_name }} {{ $teacher?->last_name }}</span>
                     </div>
                     <div class="aula-card-footer">
+                        @unless($isStudent)
                         <div class="aula-code-block">
                             <div class="aula-code-row">
                                 <span class="aula-codigo">
@@ -243,6 +272,7 @@
                                 {{ $activeCode ? 'Código activo para inscripciones' : ($latestCode ? 'Código expirado' : 'Aún sin código generado') }}
                             </small>
                         </div>
+                        @endunless
                         <div class="aula-acciones">
                             <button class="action-btn" title="Ver detalle"
                                 onclick="abrirDetalle(
@@ -259,7 +289,7 @@
                                 )">
                                 <i class="fas fa-eye"></i>
                             </button>
-                            @if($classroom->is_active && auth()->id() === $classroom->teacher_id)
+                            @if(!$isStudent && $classroom->is_active && auth()->id() === $classroom->teacher_id)
                                 {{-- Generar nuevo código --}}
                                 <form method="POST"
                                       action="{{ route('aulas.generate-code', $classroom->id) }}"
@@ -271,7 +301,7 @@
                                     </button>
                                 </form>
                             @endif
-                            @if(auth()->id() === $classroom->teacher_id || auth()->user()->hasRole('Administrator'))
+                            @if(!$isStudent && (auth()->id() === $classroom->teacher_id || auth()->user()->hasRole('Administrator')))
                                 {{-- Toggle estado --}}
                                 <form method="POST"
                                       action="{{ route('aulas.toggle', $classroom->id) }}"
@@ -291,17 +321,25 @@
             @empty
                 <div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--text-secondary)">
                     <i class="fas fa-chalkboard" style="font-size:3rem;display:block;margin-bottom:1rem;"></i>
-                    <p>No tienes aulas registradas aún.</p>
-                    @if($stats['can_create'])
-                        <a href="{{ route('aulas.create') }}" class="btn btn-primary btn-md" style="margin-top:1rem;">
-                            <i class="fas fa-plus"></i> Crear primera aula
-                        </a>
+                    @if($isStudent)
+                        <p>No estás inscrito en ningún aula.</p>
+                        <button type="button" class="btn btn-primary btn-md" style="margin-top:1rem;" onclick="abrirModal('modalInscripcionAlumno')">
+                            <i class="fas fa-key"></i> Unirme con código de invitación
+                        </button>
+                    @else
+                        <p>No tienes aulas registradas aún.</p>
+                        @if($stats['can_create'])
+                            <a href="{{ route('aulas.create') }}" class="btn btn-primary btn-md" style="margin-top:1rem;">
+                                <i class="fas fa-plus"></i> Crear primera aula
+                            </a>
+                        @endif
                     @endif
                 </div>
             @endforelse
         </div>
     </div>
 
+    @unless($isStudent)
     {{-- VISTA TABLA --}}
     <div id="vistaList" style="display:none;">
         <div class="card">
@@ -417,8 +455,56 @@
             </div>
         </div>
     </div>
+    @endunless
 
 </div>
+
+@if($isStudent)
+{{-- MODAL: INSCRIPCIÓN ALUMNO --}}
+<div class="modal-overlay {{ !empty($showEnrollmentModal) ? 'active' : '' }}" id="modalInscripcionAlumno">
+    <div class="modal modal-md">
+        <div class="modal-header">
+            <div>
+                <h3 class="modal-title">Unirme a un aula</h3>
+                <p class="modal-subtitle">Ingresa el código que te compartió tu docente</p>
+            </div>
+            <button class="modal-close" type="button" onclick="cerrarModal('modalInscripcionAlumno')">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form method="POST" action="{{ route('enrollments.store') }}">
+            @csrf
+            <input type="hidden" name="redirect_to" value="{{ $enrollmentRedirectUrl ?? route('aulas.index') }}">
+            <div class="modal-body">
+                <p style="margin-bottom:1rem;color:#555;font-size:.9rem;line-height:1.5;">
+                    Si te registraste sin código, aquí puedes unirte al aula correcta.
+                    Tu cuenta se asociará automáticamente a la institución del docente.
+                </p>
+                <div class="form-group">
+                    <label class="form-label" for="student_invitation_code">Código de invitación</label>
+                    <input type="text"
+                           id="student_invitation_code"
+                           name="invitation_code"
+                           class="form-input"
+                           placeholder="Ej. ABC12345"
+                           value="{{ old('invitation_code') }}"
+                           style="text-transform:uppercase;letter-spacing:.1rem;"
+                           required>
+                    @error('invitation_code')
+                        <span style="display:block;margin-top:.4rem;color:#DC3545;font-size:.85rem;">{{ $message }}</span>
+                    @enderror
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline btn-md" onclick="cerrarModal('modalInscripcionAlumno')">Cancelar</button>
+                <button type="submit" class="btn btn-primary btn-md">
+                    <i class="fas fa-user-plus"></i> Inscribirme
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
 
 {{-- MODAL: DETALLE AULA --}}
 <div class="modal-overlay" id="modalDetalle">
@@ -467,7 +553,7 @@
         </div>
         <div class="modal-footer">
             <button class="btn btn-outline btn-md" onclick="cerrarModal('modalDetalle')">Cerrar</button>
-            <a href="{{ route('asistencias.docente') }}" class="btn btn-primary btn-md">
+            <a href="{{ $isStudent ? route('asistencias.alumno') : route('asistencias.docente') }}" class="btn btn-primary btn-md">
                 <i class="fas fa-clipboard-check"></i>
                 Ir a asistencias
             </a>
@@ -475,6 +561,7 @@
     </div>
 </div>
 
+@unless($isStudent)
 {{-- MODAL: REGENERAR CÓDIGO EXPIRADO --}}
 <div class="modal-overlay" id="modalRegenCode">
     <div class="modal modal-sm">
@@ -498,22 +585,48 @@
         </div>
     </div>
 </div>
+@endunless
 
 @push('scripts')
 <script>
     let pendingRegenerateClassroomId = null;
     const promptedExpiredCodes = new Set();
+    const isStudentView = @json($isStudent);
 
     // ── Modales ───────────────────────────────────────────────────────────────
-    function abrirModal(id) { document.getElementById(id).classList.add('active'); }
-    function cerrarModal(id){ document.getElementById(id).classList.remove('active'); }
+    function abrirModal(id) { document.getElementById(id)?.classList.add('active'); }
+    function cerrarModal(id){ document.getElementById(id)?.classList.remove('active'); }
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
             cerrarModal('modalDetalle');
             cerrarModal('modalRegenCode');
+            cerrarModal('modalInscripcionAlumno');
         }
     });
 
+    @if($isStudent && !empty($showEnrollmentModal))
+    document.addEventListener('DOMContentLoaded', () => abrirModal('modalInscripcionAlumno'));
+    @endif
+    @if($isStudent && $errors->has('invitation_code'))
+    document.addEventListener('DOMContentLoaded', () => abrirModal('modalInscripcionAlumno'));
+    @endif
+
+    function abrirDetalle(id, nombre, periodo, alumnos, capacidad, sesiones, minAsist, docente, activo, codigo) {
+        document.getElementById('detalleTitulo').textContent    = nombre;
+        document.getElementById('detalleSubtitulo').textContent = periodo;
+        document.getElementById('detalleDocente').textContent   = docente.trim() || '—';
+        document.getElementById('detallePeriodo').textContent   = periodo;
+        document.getElementById('detalleAlumnos').textContent   = `${alumnos} / ${capacidad} cupo`;
+        document.getElementById('detalleSesiones').textContent  = sesiones;
+        document.getElementById('detalleMinAsist').textContent  = `${minAsist}%`;
+        document.getElementById('detalleCodigo').textContent    = codigo || 'Sin código activo';
+        const estadoEl = document.getElementById('detalleEstado');
+        estadoEl.textContent = activo ? 'Abierto' : 'Cerrado';
+        estadoEl.className   = 'status ' + (activo ? 'status-open' : 'status-closed');
+        abrirModal('modalDetalle');
+    }
+
+    if (!isStudentView) {
     // ── Tabs ──────────────────────────────────────────────────────────────────
     document.querySelectorAll('.mod-tab').forEach(tab => {
         tab.addEventListener('click', () => {
@@ -553,22 +666,6 @@
             tr.style.display = tr.textContent.toLowerCase().includes(texto) ? '' : 'none';
         });
     });
-
-    // ── Detalle ───────────────────────────────────────────────────────────────
-    function abrirDetalle(id, nombre, periodo, alumnos, capacidad, sesiones, minAsist, docente, activo, codigo) {
-        document.getElementById('detalleTitulo').textContent    = nombre;
-        document.getElementById('detalleSubtitulo').textContent = periodo;
-        document.getElementById('detalleDocente').textContent   = docente.trim() || '—';
-        document.getElementById('detallePeriodo').textContent   = periodo;
-        document.getElementById('detalleAlumnos').textContent   = `${alumnos} / ${capacidad} cupo`;
-        document.getElementById('detalleSesiones').textContent  = sesiones;
-        document.getElementById('detalleMinAsist').textContent  = `${minAsist}%`;
-        document.getElementById('detalleCodigo').textContent    = codigo || 'Sin código activo';
-        const estadoEl = document.getElementById('detalleEstado');
-        estadoEl.textContent = activo ? 'Abierto' : 'Cerrado';
-        estadoEl.className   = 'status ' + (activo ? 'status-open' : 'status-closed');
-        abrirModal('modalDetalle');
-    }
 
     // ── Copiar código al portapapeles ─────────────────────────────────────────
     function copiarCodigo(code, btn) {
@@ -648,6 +745,7 @@
     askToRegenerateIfExpired();
     setInterval(updateCodeCountdowns, 30000);
     setInterval(askToRegenerateIfExpired, 30000);
+    }
 </script>
 @endpush
 

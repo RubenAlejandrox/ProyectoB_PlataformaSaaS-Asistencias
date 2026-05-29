@@ -133,15 +133,26 @@ class AuthController extends Controller
     // ── WEB Register ──────────────────────────────────────────────────────────
     public function register(Request $request): RedirectResponse
     {
+        $request->merge([
+            'first_name' => trim((string) $request->input('first_name', '')),
+            'last_name'  => trim((string) $request->input('last_name', '')),
+        ]);
+
+        $nameRule = ['required', 'string', 'max:100', 'regex:/^[\p{L}]+(?:[\s\'-][\p{L}]+)*$/u'];
+
         $request->validate([
-            'first_name'      => 'required|string|max:100',
-            'last_name'       => 'required|string|max:100',
+            'first_name'      => $nameRule,
+            'last_name'       => $nameRule,
             'email'           => 'required|email|unique:users,email',
             'role'            => 'required|in:Teacher,Student',
             'password'        => 'required|string|min:8|confirmed',
             'invitation_code' => 'nullable|string',
             'privacy_accepted' => 'accepted',
         ], [
+            'first_name.required' => 'El nombre es obligatorio.',
+            'first_name.regex'    => 'El nombre solo puede contener letras, espacios, guiones o apóstrofes.',
+            'last_name.required'  => 'El apellido es obligatorio.',
+            'last_name.regex'     => 'El apellido solo puede contener letras, espacios, guiones o apóstrofes.',
             'email.unique'       => 'Este correo ya está registrado.',
             'password.min'       => 'La contraseña debe tener al menos 8 caracteres.',
             'password.confirmed' => 'Las contraseñas no coinciden.',

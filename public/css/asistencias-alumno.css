@@ -135,7 +135,7 @@ Paleta Institucional Azul Corporativo
 ======================================== */
 .panel-grid {
     display: grid;
-    grid-template-columns: 340px 1fr;
+    grid-template-columns: minmax(300px, 360px) 1fr;
     gap: 24px;
     align-items: start;
 }
@@ -192,59 +192,110 @@ Paleta Institucional Azul Corporativo
 .card-body.p-0 { padding: 0; }
 
 /* ========================================
-   Registro Clave — inputs individuales
+   Registro Clave — hero ancho completo
 ======================================== */
+.registro-asistencia-hero {
+    margin-bottom: 24px;
+}
+
+.registro-asistencia-hero .card-body {
+    padding: 28px 32px 32px;
+}
+
+.registro-form {
+    max-width: 720px;
+    margin: 0 auto;
+}
+
 .registro-desc {
-    font-size: 14px;
+    font-size: 15px;
     color: var(--soft-steel);
     line-height: 1.6;
-    margin-bottom: 24px;
+    margin: 0 0 28px;
     text-align: center;
+}
+
+.registro-desc strong {
+    color: var(--deep-blue);
+    font-weight: 700;
+}
+
+.clave-inputs-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: nowrap;
+    width: 100%;
+    margin-bottom: 12px;
+    padding: 4px 0;
 }
 
 .clave-inputs {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 16px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(52px, 1fr));
+    gap: 12px;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 320px;
+}
+
+.clave-grupo-sep {
+    flex: 0 0 12px;
+    width: 12px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--corp-orange);
+    opacity: 0.85;
 }
 
 .clave-char {
-    width: 44px;
-    height: 54px;
+    width: 100%;
+    min-width: 0;
+    height: 64px;
     border: 2px solid var(--mist-blue);
     border-radius: var(--radius-md);
     text-align: center;
-    font-size: 22px;
+    font-size: 1.75rem;
     font-weight: 700;
-    font-family: 'Courier New', monospace;
+    font-family: 'Courier New', Consolas, monospace;
     color: var(--deep-blue);
-    background: var(--ice-blue);
+    background: #fff;
     text-transform: uppercase;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    letter-spacing: 0.05em;
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
     outline: none;
+    padding: 0;
+    box-sizing: border-box;
 }
 
 .clave-char:focus {
     border-color: var(--deep-blue);
-    box-shadow: 0 0 0 3px rgba(19, 68, 116, 0.15);
-    background: #fff;
+    box-shadow: 0 0 0 4px rgba(19, 68, 116, 0.12);
+    transform: translateY(-1px);
 }
 
-.clave-separador {
-    font-size: 20px;
-    color: var(--mist-blue);
-    font-weight: 300;
-    margin: 0 4px;
+.clave-char:not(:placeholder-shown) {
+    border-color: var(--royal-blue);
+    background: var(--ice-blue);
 }
 
 .clave-hint {
     text-align: center;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--soft-steel);
-    margin-bottom: 20px;
-    min-height: 18px;
+    margin: 8px 0 20px;
+    min-height: 20px;
+}
+
+.registro-actions {
+    display: flex;
+    justify-content: center;
+}
+
+.registro-actions .btn-lg {
+    min-width: 260px;
+    max-width: 100%;
 }
 
 /* ========================================
@@ -632,8 +683,39 @@ Paleta Institucional Azul Corporativo
 @media (max-width: 640px) {
     .header-text h1 { font-size: 24px; }
     .kpi-grid { grid-template-columns: 1fr 1fr; }
-    .clave-char { width: 38px; height: 48px; font-size: 18px; }
+    .registro-asistencia-hero .card-body { padding: 20px 16px 24px; }
+    .clave-inputs-wrap {
+        gap: 10px;
+    }
+    .clave-inputs {
+        gap: 8px;
+        max-width: none;
+    }
+    .clave-char {
+        height: 52px;
+        font-size: 1.35rem;
+    }
+    .clave-grupo-sep {
+        flex: 0 0 8px;
+        width: 8px;
+    }
+    .registro-actions .btn-lg {
+        width: 100%;
+        min-width: 0;
+    }
     .search-input { width: 140px; }
+}
+
+@media (max-width: 400px) {
+    .clave-inputs {
+        grid-template-columns: repeat(4, minmax(36px, 1fr));
+        gap: 6px;
+    }
+    .clave-char {
+        height: 46px;
+        font-size: 1.15rem;
+        border-width: 1.5px;
+    }
 }
 
 /* Progreso por materia + semáforo */

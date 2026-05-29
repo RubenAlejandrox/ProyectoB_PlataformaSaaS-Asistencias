@@ -14,6 +14,7 @@ use App\Http\Controllers\AdminSessionController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\CycleController;
 use App\Http\Controllers\AdminEditController;
+use App\Http\Controllers\ProfileController;
 
 
 use Illuminate\Support\Facades\Route;
@@ -49,6 +50,10 @@ Route::middleware(['auth'])->group(function () {
     // Raíz redirecciona automáticamente al dashboard analítico según el rol
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard', [DashboardController::class, 'index']);
+
+    Route::get('/perfil', [ProfileController::class, 'index'])->name('perfil.index');
+    Route::put('/perfil', [ProfileController::class, 'update'])->name('perfil.update');
+    Route::put('/perfil/password', [ProfileController::class, 'updatePassword'])->name('perfil.password');
 
     // Módulos Administrativos
     Route::middleware('role:Administrator')->group(function () {

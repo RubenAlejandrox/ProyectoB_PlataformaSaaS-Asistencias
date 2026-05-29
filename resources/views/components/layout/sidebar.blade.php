@@ -192,6 +192,13 @@
         <div class="nav-section">
             <span class="nav-label">Mi Portal</span>
 
+            <a href="{{ route('aulas.index') }}"
+               class="nav-item {{ request()->routeIs('aulas.*') ? 'active' : '' }}"
+               data-tooltip="Mis Aulas">
+                <i class="fas fa-chalkboard nav-icon"></i>
+                <span class="nav-text">Mis Aulas</span>
+            </a>
+
             <a href="{{ route('asistencias.alumno') }}"
                class="nav-item {{ request()->routeIs('asistencias.alumno') ? 'active' : '' }}"
                data-tooltip="Registrar Asistencia">
@@ -219,7 +226,9 @@
 
     <!-- Sidebar Footer -->
     <div class="sidebar-footer">
-        <a href="#" class="nav-item" data-tooltip="Mi Perfil">
+        <a href="{{ route('perfil.index') }}"
+           class="nav-item {{ request()->routeIs('perfil.*') ? 'active' : '' }}"
+           data-tooltip="Mi Perfil">
             <i class="fas fa-user-circle nav-icon"></i>
             <span class="nav-text">Mi Perfil</span>
         </a>

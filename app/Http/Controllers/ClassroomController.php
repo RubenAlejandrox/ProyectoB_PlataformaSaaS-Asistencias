@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Classroom;
+use App\Models\Enrollment;
 use App\Models\InvitationCode;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +14,12 @@ class ClassroomController extends Controller
     // ── index ─────────────────────────────────────────────────────────────────
     public function index()
     {
-        $user        = auth()->user();
+        $user = auth()->user();
+
+        if ($user->hasRole('Student')) {
+            return $this->indexForStudent($user);
+        }
+
         $institution = $user->institution;
 
         // Docente ve solo sus aulas — Admin ve todas de la institución
@@ -53,9 +59,51 @@ class ClassroomController extends Controller
         return view('aulas.index', compact('classrooms', 'stats', 'activePlan'));
     }
 
+    private function indexForStudent($user)
+    {
+        $enrolledIds = Enrollment::withoutGlobalScopes()
+            ->where('student_id', $user->id)
+            ->where('is_active', true)
+            ->pluck('classroom_id');
+
+        $classrooms = Classroom::with(['teacher'])
+            ->withCount(['enrollments' => fn ($q) => $q->where('is_active', true)])
+            ->withCount('sessions')
+            ->whereIn('id', $enrolledIds)
+            ->orderBy('is_active', 'desc')
+            ->orderBy('subject_name')
+            ->get();
+
+        $stats = [
+            'total'          => $classrooms->count(),
+            'active'         => $classrooms->where('is_active', true)->count(),
+            'closed'         => $classrooms->where('is_active', false)->count(),
+            'total_students' => 0,
+            'plan_limit'     => 0,
+            'plan_used'      => 0,
+            'can_create'     => false,
+        ];
+
+        $activePlan            = null;
+        $showEnrollmentModal   = $classrooms->isEmpty();
+        $enrollmentRedirectUrl = route('aulas.index');
+
+        return view('aulas.index', compact(
+            'classrooms',
+            'stats',
+            'activePlan',
+            'showEnrollmentModal',
+            'enrollmentRedirectUrl'
+        ));
+    }
+
     // ── create ────────────────────────────────────────────────────────────────
     public function create()
     {
+        if (auth()->user()->hasRole('Student')) {
+            abort(403);
+        }
+
         $user        = auth()->user();
         $institution = $user->institution;
         $activePlan  = $institution?->activePlan();

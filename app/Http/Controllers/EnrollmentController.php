@@ -44,8 +44,13 @@ class EnrollmentController extends Controller
 
         $aula = $enrollment->classroom->subject_name . ' — ' . $enrollment->classroom->period;
 
+        $redirectTo = $request->input('redirect_to', route('dashboard'));
+        if (! is_string($redirectTo) || ! str_starts_with($redirectTo, url('/'))) {
+            $redirectTo = route('dashboard');
+        }
+
         return redirect()
-            ->route('dashboard')
+            ->to($redirectTo)
             ->with('success', "Te inscribiste correctamente en {$aula}.");
     }
 
