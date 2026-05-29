@@ -123,7 +123,9 @@ class JustificationTest extends TestCase
             $mock->shouldReceive('isAllowedMime')
                 ->andReturn(true);
             $mock->shouldReceive('upload')
-                ->andReturn('https://example.supabase.co/storage/v1/object/public/justification-files/test.pdf');
+                ->andReturn('https://example.supabase.co/storage/v1/object/public/justificantes-adjuntos/test.pdf');
+        $mock->shouldReceive('justificationsBucket')
+            ->andReturn('justificantes-adjuntos');
         });
     }
 

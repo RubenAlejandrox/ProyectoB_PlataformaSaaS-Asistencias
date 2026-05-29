@@ -105,6 +105,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/aulas',                            [ClassroomController::class, 'index'])->name('aulas.index');
     Route::get('/aulas/create',                     [ClassroomController::class, 'create'])->name('aulas.create');
     Route::post('/aulas',                           [ClassroomController::class, 'store'])->name('aulas.store');
+    Route::get('/aulas/{classroom}',                [ClassroomController::class, 'show'])->name('aulas.show');
+    Route::get('/aulas/{classroom}/alumnos/export', [ClassroomController::class, 'exportStudents'])->name('aulas.alumnos.export');
     Route::patch('/aulas/{classroom}/toggle',       [ClassroomController::class, 'toggleStatus'])->name('aulas.toggle');
     Route::post('/aulas/{classroom}/generate-code', [ClassroomController::class, 'generateCode'])->name('aulas.generate-code');
 
@@ -127,8 +129,12 @@ Route::middleware(['auth'])->group(function () {
             ->name('asistencias.docente.sesion');
         Route::post('/asistencias/docente/sesiones/{session}/clave', [AttendanceWebController::class, 'generateKey'])
             ->name('asistencias.docente.clave');
+        Route::post('/asistencias/docente/sesiones/{session}/clave/detener', [AttendanceWebController::class, 'stopKey'])
+            ->name('asistencias.docente.clave.detener');
         Route::post('/asistencias/docente/sesiones/{session}/cerrar', [AttendanceWebController::class, 'closeSession'])
             ->name('asistencias.docente.cerrar');
+        Route::patch('/asistencias/docente/sesiones/{session}/alumnos/{student}/estatus', [AttendanceWebController::class, 'updateStudentAttendance'])
+            ->name('asistencias.docente.estatus');
     });
 
     Route::middleware('role:Student')->group(function () {

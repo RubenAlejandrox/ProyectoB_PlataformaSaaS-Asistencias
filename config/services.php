@@ -36,9 +36,13 @@ return [
     ],
 
     'supabase' => [
-    'url'         => env('SUPABASE_URL'),
-    'anon_key'    => env('SUPABASE_ANON_KEY'),
-    'service_key' => env('SUPABASE_SERVICE_KEY'),
+        'url'         => env('SUPABASE_URL'),
+        'anon_key'    => env('SUPABASE_ANON_KEY'),
+        'service_key' => env('SUPABASE_SERVICE_KEY'),
+        'buckets'     => [
+            'justifications'   => env('SUPABASE_BUCKET_JUSTIFICATIONS', 'justificantes-adjuntos'),
+            'institution_logos' => env('SUPABASE_BUCKET_INSTITUTION_LOGOS', 'institution-logos'),
+        ],
     ],
 
 ];

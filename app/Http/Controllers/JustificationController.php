@@ -15,8 +15,6 @@ use Illuminate\View\View;
 
 class JustificationController extends Controller
 {
-    private const BUCKET = 'justification-files';
-
     public function __construct(
         private SupabaseStorageService $storage,
         private AttendanceProgressService $progressService,
@@ -201,7 +199,9 @@ class JustificationController extends Controller
             ], 422);
         }
 
-        if (!$this->storage->isAllowedMime($request->file('file'), self::BUCKET)) {
+        $bucket = $this->storage->justificationsBucket();
+
+        if (! $this->storage->isAllowedMime($request->file('file'), $bucket)) {
             return response()->json([
                 'message' => 'Tipo de archivo no permitido. Solo PDF, JPG o PNG.',
             ], 422);
@@ -209,13 +209,18 @@ class JustificationController extends Controller
 
         $fileUrl = $this->storage->upload(
             $request->file('file'),
-            self::BUCKET,
+            $bucket,
             (string) auth()->user()->id
         );
 
-        if (!$fileUrl) {
+        if (! $fileUrl) {
+            $detail = $this->storage->getLastError()
+                ?? 'Error al subir el archivo. Verifique Supabase Storage.';
+
             return response()->json([
-                'message' => 'Error al subir el archivo. Intenta de nuevo.',
+                'message' => config('app.debug')
+                    ? $detail
+                    : 'Error al subir el archivo. Intenta de nuevo. Si persiste, contacte al administrador.',
             ], 422);
         }
 

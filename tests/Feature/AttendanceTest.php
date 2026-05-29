@@ -256,4 +256,88 @@ class AttendanceTest extends TestCase
 
         $this->assertFalse($this->session->fresh()->is_active);
     }
+
+    #[Test]
+    public function teacher_can_stop_session_key_before_expiration_via_web(): void
+    {
+        $this->actingAs($this->teacher)
+            ->postJson(route('asistencias.docente.clave.detener', $this->session))
+            ->assertOk()
+            ->assertJsonFragment(['message' => 'Clave de asistencia detenida. Los alumnos ya no pueden registrar con esta clave.']);
+
+        $this->validKey->refresh();
+        $this->assertFalse($this->validKey->isValid());
+        $this->assertTrue($this->session->fresh()->is_active);
+
+        $this->actingAs($this->student)
+            ->from(route('asistencias.alumno'))
+            ->post(route('asistencias.alumno.registrar'), ['access_key' => 'VALIDKEY'])
+            ->assertRedirect()
+            ->assertSessionHasErrors('access_key');
+    }
+
+    #[Test]
+    public function teacher_can_close_session_via_web(): void
+    {
+        $this->actingAs($this->teacher)
+            ->postJson(route('asistencias.docente.cerrar', $this->session))
+            ->assertOk();
+
+        $this->assertDatabaseHas('attendances', [
+            'session_id' => $this->session->id,
+            'student_id' => $this->student->id,
+            'status'     => 'absent',
+        ]);
+
+        $this->assertFalse($this->session->fresh()->is_active);
+        $this->assertFalse($this->validKey->fresh()->is_active);
+    }
+
+    #[Test]
+    public function teacher_can_manually_mark_absent_for_justification_window(): void
+    {
+        Attendance::withoutGlobalScopes()
+            ->where('session_id', $this->session->id)
+            ->where('student_id', $this->student->id)
+            ->delete();
+
+        $this->actingAs($this->teacher)
+            ->patchJson(route('asistencias.docente.estatus', [
+                'session' => $this->session->id,
+                'student' => $this->student->id,
+            ]), ['status' => 'absent'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'absent');
+
+        $attendance = Attendance::withoutGlobalScopes()
+            ->where('session_id', $this->session->id)
+            ->where('student_id', $this->student->id)
+            ->first();
+
+        $this->assertNotNull($attendance);
+        $this->assertEquals('absent', $attendance->status);
+        $this->assertTrue($attendance->created_at->gte(now()->subMinute()));
+    }
+
+    #[Test]
+    public function teacher_can_reset_attendance_to_pending(): void
+    {
+        Attendance::withoutGlobalScopes()->create([
+            'session_id'  => $this->session->id,
+            'student_id'  => $this->student->id,
+            'status'      => 'present',
+        ]);
+
+        $this->actingAs($this->teacher)
+            ->patchJson(route('asistencias.docente.estatus', [
+                'session' => $this->session->id,
+                'student' => $this->student->id,
+            ]), ['status' => 'pending'])
+            ->assertOk();
+
+        $this->assertDatabaseMissing('attendances', [
+            'session_id' => $this->session->id,
+            'student_id' => $this->student->id,
+        ]);
+    }
 }

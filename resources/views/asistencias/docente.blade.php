@@ -104,7 +104,7 @@
                 </div>
                 <div class="card-body clave-body">
 
-                    @if(!$activeSession)
+                    @if(!$todaySession)
                         <p class="clave-desc">Abre una sesión de hoy para generar la clave de asistencia.</p>
                         <form method="POST" action="{{ route('asistencias.docente.sesion') }}">
                             @csrf
@@ -113,6 +113,10 @@
                                 <i class="fas fa-play-circle"></i> Abrir sesión de hoy
                             </button>
                         </form>
+                    @elseif(!$activeSession)
+                        <p class="clave-desc" style="margin-bottom:1rem;">
+                            La sesión de hoy está cerrada. Puedes corregir estados en la tabla de alumnos.
+                        </p>
                     @else
                         <div x-show="!claveActiva">
                             <p class="clave-desc">Genera una clave alfanumérica de 8 caracteres para que tus alumnos registren su asistencia.</p>
@@ -163,8 +167,11 @@
                             <button type="button" class="btn btn-outline btn-md btn-full" style="margin-bottom:.5rem;" @click="generarClave()">
                                 <i class="fas fa-redo"></i> Regenerar clave
                             </button>
-                            <button type="button" class="btn btn-danger btn-md btn-full" @click="confirmarCierre = true">
-                                <i class="fas fa-stop-circle"></i> Cerrar registro manualmente
+                            <button type="button" class="btn btn-danger btn-md btn-full"
+                                    @click="confirmarDetener = true"
+                                    :disabled="deteniendo || cerrando">
+                                <i class="fas fa-stop-circle"></i>
+                                <span x-text="deteniendo ? 'Deteniendo...' : 'Detener clave de sesión'"></span>
                             </button>
                         </div>
                     @endif
@@ -219,6 +226,9 @@
                                     <th>Estado hoy</th>
                                     <th>Hora registro</th>
                                     <th>Riesgo</th>
+                                    @if($todaySession)
+                                        <th>Acciones</th>
+                                    @endif
                                 </tr>
                             </thead>
                             <tbody>
@@ -245,8 +255,8 @@
                                         $todayStatus = $row['today_status'] ?? 'pending';
                                     @endphp
                                     <tr data-student-id="{{ $row['id'] }}"
-                                        data-estado="{{ $todayStatus }}"
-                                        x-show="filtrarFila('{{ $row['name'] }}', '{{ $todayStatus }}')">
+                                        data-estado="{{ $todayStatus ?? 'pending' }}"
+                                        x-show="filtrarFila(@js($row['name']), $el.dataset.estado)">
                                         <td>
                                             <div class="alumno-cell">
                                                 <div class="avatar-sm">{{ $row['initials'] }}</div>
@@ -274,6 +284,33 @@
                                                 <i class="fas fa-circle"></i> {{ $riesgoLabel }}
                                             </span>
                                         </td>
+                                        @if($todaySession)
+                                            <td class="estatus-actions-cell">
+                                                <div class="estatus-actions" title="Corrección manual del docente">
+                                                    <button type="button"
+                                                            class="estatus-btn estatus-btn--present"
+                                                            title="Marcar asistencia"
+                                                            :disabled="cambiandoEstatus === '{{ $row['id'] }}'"
+                                                            @click="cambiarEstatus('{{ $row['id'] }}', 'present')">
+                                                        <i class="fas fa-check"></i>
+                                                    </button>
+                                                    <button type="button"
+                                                            class="estatus-btn estatus-btn--absent"
+                                                            title="Marcar falta (habilita justificante 72 h)"
+                                                            :disabled="cambiandoEstatus === '{{ $row['id'] }}'"
+                                                            @click="cambiarEstatus('{{ $row['id'] }}', 'absent')">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                    <button type="button"
+                                                            class="estatus-btn estatus-btn--pending"
+                                                            title="Dejar pendiente (sin registro)"
+                                                            :disabled="cambiandoEstatus === '{{ $row['id'] }}' || {{ ($row['has_approved_justification'] ?? false) ? 'true' : 'false' }}"
+                                                            @click="cambiarEstatus('{{ $row['id'] }}', 'pending')">
+                                                        <i class="fas fa-undo"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        @endif
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -285,12 +322,43 @@
     </div>
     @endif
 
-    {{-- Modal cierre --}}
+    {{-- Modal detener clave --}}
+    <div class="modal-overlay" :class="{ 'active': confirmarDetener }" @keydown.escape.window="confirmarDetener = false">
+        <div class="modal modal-md" @click.outside="confirmarDetener = false">
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title">Detener clave de sesión</h3>
+                    <p class="modal-subtitle">Finalizar el registro de asistencia antes de tiempo</p>
+                </div>
+                <button type="button" class="modal-close" @click="confirmarDetener = false">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>¿Desea detener la clave ahora? Los alumnos <strong>no podrán registrar</strong> asistencia con el código actual.</p>
+                <p style="margin-top:.75rem;font-size:.9rem;color:#6b7280;">
+                    Puede generar una nueva clave después o cerrar la sesión para marcar faltas automáticas.
+                </p>
+            </div>
+            <div class="modal-footer" style="flex-wrap:wrap;gap:.5rem;">
+                <button type="button" class="btn btn-outline btn-md" @click="confirmarDetener = false">Cancelar</button>
+                <button type="button" class="btn btn-danger btn-md" @click="detenerClave()" :disabled="deteniendo">
+                    <i class="fas fa-stop-circle"></i>
+                    <span x-text="deteniendo ? 'Deteniendo...' : 'Detener clave'"></span>
+                </button>
+                <button type="button" class="btn btn-outline btn-md" @click="confirmarDetener = false; confirmarCierre = true" :disabled="cerrando">
+                    Cerrar sesión y marcar faltas…
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {{-- Modal cierre de sesión --}}
     <div class="modal-overlay" :class="{ 'active': confirmarCierre }" @keydown.escape.window="confirmarCierre = false">
         <div class="modal modal-md" @click.outside="confirmarCierre = false">
             <div class="modal-header">
                 <div>
-                    <h3 class="modal-title">Cerrar registro de asistencia</h3>
+                    <h3 class="modal-title">Cerrar sesión del aula</h3>
                     <p class="modal-subtitle">Esta acción no puede deshacerse</p>
                 </div>
                 <button type="button" class="modal-close" @click="confirmarCierre = false">
@@ -298,13 +366,14 @@
                 </button>
             </div>
             <div class="modal-body">
-                <p>¿Está seguro que desea cerrar el registro antes de que expire la clave?</p>
+                <p>Se detendrá la clave y se cerrará la sesión de hoy.</p>
                 <p>Los alumnos que no hayan registrado su asistencia quedarán marcados como <strong>Falta</strong>.</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline btn-md" @click="confirmarCierre = false">Cancelar</button>
-                <button type="button" class="btn btn-danger btn-md" @click="cerrarSesion()">
-                    <i class="fas fa-stop-circle"></i> Cerrar registro
+                <button type="button" class="btn btn-danger btn-md" @click="cerrarSesion()" :disabled="cerrando">
+                    <i class="fas fa-lock"></i>
+                    <span x-text="cerrando ? 'Cerrando...' : 'Cerrar sesión'"></span>
                 </button>
             </div>
         </div>
@@ -331,7 +400,7 @@
 
 @push('scripts')
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
-@if($classroom && $activeSession)
+@if($classroom && $todaySession)
 <script src="https://js.pusher.com/8.4.0-rc2/pusher.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/laravel-echo@1.19.0/dist/echo.iife.js"></script>
 @endif
@@ -344,7 +413,7 @@ function docenteAsistencias() {
         codigoClave: @json($activeKey?->access_key ?? ''),
         expiresAt: @json($activeKey?->expires_at?->toIso8601String()),
         sesionActiva: @json((bool) $activeSession),
-        sessionId: @json($activeSession?->id),
+        sessionId: @json($todaySession?->id),
         classroomId: @json($classroom?->id),
         contadorAsistencias: {{ $stats['present_today'] ?? 0 }},
         segundosRestantes: 0,
@@ -352,12 +421,19 @@ function docenteAsistencias() {
         countdownLabel: '00:00',
         circunferencia: 2 * Math.PI * 34,
         ringOffset: 0,
+        confirmarDetener: false,
         confirmarCierre: false,
         modalExpirado: false,
+        deteniendo: false,
+        cerrando: false,
         busqueda: '',
         filtroEstado: '',
         timer: null,
         csrf: '{{ csrf_token() }}',
+        urlDetenerClave: @json($activeSession ? route('asistencias.docente.clave.detener', $activeSession) : null),
+        urlCerrarSesion: @json($todaySession ? route('asistencias.docente.cerrar', $todaySession) : null),
+        urlEstatusBase: @json($todaySession ? url('/asistencias/docente/sesiones/'.$todaySession->id.'/alumnos') : null),
+        cambiandoEstatus: null,
 
         init() {
             if (this.claveActiva && this.expiresAt) {
@@ -391,12 +467,66 @@ function docenteAsistencias() {
 
         onAttendance(e) {
             this.contadorAsistencias++;
-            const row = document.querySelector(`tr[data-student-id="${e.student_id}"]`);
+            this.actualizarFilaAlumno(e.student_id, 'present', e.registered_at);
+        },
+
+        actualizarFilaAlumno(studentId, status, registeredAt) {
+            const row = document.querySelector(`tr[data-student-id="${studentId}"]`);
             if (!row) return;
-            row.dataset.estado = 'present';
-            row.querySelector('.estado-cell').innerHTML = '<span class="status status-active">Asistencia</span>';
-            const hora = e.registered_at ? new Date(e.registered_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '—';
-            row.querySelector('.hora-cell').textContent = hora;
+            row.dataset.estado = status;
+            const estadoCell = row.querySelector('.estado-cell');
+            if (!estadoCell) return;
+            if (status === 'present') {
+                estadoCell.innerHTML = '<span class="status status-active">Asistencia</span>';
+            } else if (status === 'absent') {
+                estadoCell.innerHTML = '<span class="status status-absent">Falta</span>';
+            } else {
+                estadoCell.innerHTML = '<span class="status status-pending">Pendiente</span>';
+            }
+            const horaCell = row.querySelector('.hora-cell');
+            if (horaCell) {
+                if (status === 'pending') {
+                    horaCell.textContent = '—';
+                } else if (registeredAt) {
+                    const d = typeof registeredAt === 'string' && registeredAt.includes(':') && registeredAt.length <= 5
+                        ? registeredAt
+                        : new Date(registeredAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+                    horaCell.textContent = d;
+                }
+            }
+        },
+
+        async cambiarEstatus(studentId, status) {
+            if (!this.urlEstatusBase || this.cambiandoEstatus) return;
+            this.cambiandoEstatus = studentId;
+            try {
+                const res = await fetch(`${this.urlEstatusBase}/${studentId}/estatus`, {
+                    method: 'PATCH',
+                    headers: this.headersJson(),
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ status }),
+                });
+                let data = {};
+                try {
+                    data = await res.json();
+                } catch (e) { /* noop */ }
+                if (!res.ok) {
+                    throw new Error(data.message || `Error ${res.status}`);
+                }
+                const payload = data.data || {};
+                this.actualizarFilaAlumno(
+                    studentId,
+                    payload.status || status,
+                    payload.registered_at
+                );
+                if (typeof payload.present_count === 'number') {
+                    this.contadorAsistencias = payload.present_count;
+                }
+            } catch (err) {
+                alert(err.message);
+            } finally {
+                this.cambiandoEstatus = null;
+            }
         },
 
         async generarClave() {
@@ -441,6 +571,7 @@ function docenteAsistencias() {
                     clearInterval(this.timer);
                     this.claveActiva = false;
                     this.modalExpirado = true;
+                    this.sincronizarClaveExpirada();
                 }
             };
             tick();
@@ -451,12 +582,78 @@ function docenteAsistencias() {
             navigator.clipboard.writeText(this.codigoClave);
         },
 
-        async cerrarSesion() {
-            const res = await fetch(`{{ url('/asistencias/docente/sesiones') }}/${this.sessionId}/cerrar`, {
+        headersJson() {
+            return {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': this.csrf,
+                'X-Requested-With': 'XMLHttpRequest',
+            };
+        },
+
+        async postJson(url, body = {}) {
+            const res = await fetch(url, {
                 method: 'POST',
-                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrf },
+                headers: this.headersJson(),
+                credentials: 'same-origin',
+                body: JSON.stringify(body),
             });
-            if (res.ok) window.location.reload();
+            let data = {};
+            try {
+                data = await res.json();
+            } catch (e) {
+                /* respuesta no JSON */
+            }
+            if (!res.ok) {
+                throw new Error(data.message || `Error ${res.status}`);
+            }
+            return data;
+        },
+
+        aplicarClaveDetenida() {
+            clearInterval(this.timer);
+            this.claveActiva = false;
+            this.segundosRestantes = 0;
+            this.countdownLabel = '00:00';
+            this.ringOffset = this.circunferencia;
+        },
+
+        async detenerClave() {
+            if (!this.urlDetenerClave || this.deteniendo) return;
+            this.deteniendo = true;
+            try {
+                await this.postJson(this.urlDetenerClave);
+                this.aplicarClaveDetenida();
+                this.confirmarDetener = false;
+            } catch (err) {
+                alert(err.message);
+            } finally {
+                this.deteniendo = false;
+            }
+        },
+
+        async sincronizarClaveExpirada() {
+            if (!this.urlDetenerClave) return;
+            try {
+                await this.postJson(this.urlDetenerClave);
+            } catch (e) {
+                /* la clave ya pudo expirar en servidor */
+            }
+        },
+
+        async cerrarSesion() {
+            if (!this.urlCerrarSesion || this.cerrando) return;
+            this.cerrando = true;
+            try {
+                await this.postJson(this.urlCerrarSesion);
+                this.confirmarCierre = false;
+                this.confirmarDetener = false;
+                window.location.reload();
+            } catch (err) {
+                alert(err.message);
+            } finally {
+                this.cerrando = false;
+            }
         },
 
         filtrarFila(nombre, estado) {

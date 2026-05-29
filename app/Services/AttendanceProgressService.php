@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Events\TrafficLightAlert;
 use App\Models\Attendance;
 use App\Models\Classroom;
+use App\Models\Enrollment;
 use App\Models\Justification;
 use App\Models\Session;
 use App\Models\User;
@@ -252,6 +253,48 @@ class AttendanceProgressService
             ->whereHas('attendance.session', fn ($q) => $q->where('classroom_id', $classroomId))
             ->orderByDesc('created_at')
             ->get();
+    }
+
+    /**
+     * Lista de alumnos inscritos con porcentaje y semáforo del ciclo.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function rosterForClassroom(string $classroomId): Collection
+    {
+        $enrollments = Enrollment::withoutGlobalScopes()
+            ->where('classroom_id', $classroomId)
+            ->where('is_active', true)
+            ->with('student:id,first_name,last_name,email')
+            ->get()
+            ->sortBy(fn ($e) => strtolower(trim($e->student->last_name.' '.$e->student->first_name)));
+
+        return $enrollments->map(function ($enrollment) use ($classroomId) {
+            $student  = $enrollment->student;
+            $progress = $this->calculate($student->id, $classroomId);
+
+            return [
+                'id'             => $student->id,
+                'name'           => trim($student->first_name.' '.$student->last_name),
+                'email'          => $student->email,
+                'initials'       => strtoupper(substr($student->first_name, 0, 1).substr($student->last_name, 0, 1)),
+                'attendance_pct' => $progress['attendance_pct'],
+                'light'          => $progress['light'],
+                'light_label'    => $this->lightLabel($progress['light']),
+                'present_count'  => $progress['present_count'],
+                'approved_count' => $progress['approved_count'],
+                'total_sessions' => $progress['total_sessions'],
+            ];
+        })->values();
+    }
+
+    public function lightLabel(string $light): string
+    {
+        return match ($light) {
+            'green' => 'En regla',
+            'amber' => 'En observación',
+            default => 'En riesgo',
+        };
     }
 
     public function calculateForStudent(User $student): array

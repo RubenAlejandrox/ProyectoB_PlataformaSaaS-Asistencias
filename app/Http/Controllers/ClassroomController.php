@@ -2,15 +2,25 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\ClassroomStudentsExport;
 use App\Models\Classroom;
 use App\Models\Enrollment;
 use App\Models\InvitationCode;
+use App\Models\Session;
+use App\Services\AttendanceProgressService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\View\View;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ClassroomController extends Controller
 {
+    public function __construct(
+        private AttendanceProgressService $progressService
+    ) {}
+
     // ── index ─────────────────────────────────────────────────────────────────
     public function index()
     {
@@ -122,6 +132,78 @@ class ClassroomController extends Controller
         return view('aulas.create', compact('activePlan', 'totalClassrooms'));
     }
 
+    // ── show — detalle de aula (docente / administrador) ─────────────────────
+    public function show(Classroom $classroom): View
+    {
+        $this->authorizeClassroomView($classroom);
+
+        $classroom->load([
+            'teacher:id,first_name,last_name,email',
+            'invitationCodes' => fn ($q) => $q->orderByDesc('created_at')->limit(5),
+        ]);
+
+        $students = $this->progressService->rosterForClassroom($classroom->id);
+
+        $sessions = Session::withoutGlobalScopes()
+            ->where('classroom_id', $classroom->id)
+            ->withCount([
+                'attendances as present_count' => fn ($q) => $q->where('status', 'present'),
+                'attendances as absent_count'  => fn ($q) => $q->where('status', 'absent'),
+            ])
+            ->orderByDesc('session_date')
+            ->orderByDesc('created_at')
+            ->get();
+
+        $activeCode = $classroom->invitationCodes
+            ->where('expires_at', '>', now())
+            ->where('is_used', false)
+            ->first();
+
+        $enrolledCount = $students->count();
+        $atRiskCount   = $students->whereIn('light', ['amber', 'red'])->count();
+
+        $stats = [
+            'enrolled'         => $enrolledCount,
+            'capacity'         => $classroom->max_capacity,
+            'sessions'         => $sessions->count(),
+            'at_risk'          => $atRiskCount,
+            'min_attendance'   => $classroom->min_attendance_pct,
+            'avg_attendance'   => $enrolledCount > 0
+                ? round($students->avg('attendance_pct'), 1)
+                : 0.0,
+        ];
+
+        return view('aulas.show', compact(
+            'classroom',
+            'students',
+            'sessions',
+            'activeCode',
+            'stats',
+        ));
+    }
+
+    public function exportStudents(Classroom $classroom): BinaryFileResponse
+    {
+        $this->authorizeClassroomView($classroom);
+
+        $students = $this->progressService->rosterForClassroom($classroom->id);
+
+        $rows = $students->map(fn ($s) => [
+            $s['name'],
+            $s['email'],
+            $s['attendance_pct'],
+            $s['light_label'],
+            $s['present_count'],
+            $s['approved_count'],
+            $s['total_sessions'],
+        ])->all();
+
+        $safeName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $classroom->subject_name);
+        $filename = "alumnos_{$safeName}_{$classroom->period}.xlsx";
+
+        return Excel::download(new ClassroomStudentsExport($rows), $filename);
+    }
+
     // ── store ─────────────────────────────────────────────────────────────────
     public function store(Request $request)
     {
@@ -228,6 +310,23 @@ class ClassroomController extends Controller
             : "Aula \"{$classroom->subject_name}\" cerrada.";
 
         return back()->with('success', $msg);
+    }
+
+    private function authorizeClassroomView(Classroom $classroom): void
+    {
+        $user = auth()->user();
+
+        if ($user->hasRole('Student')) {
+            abort(403);
+        }
+
+        if ($user->hasRole('Teacher') && (string) $classroom->teacher_id !== (string) $user->id) {
+            abort(403);
+        }
+
+        if ($user->hasRole('Administrator') && (string) $classroom->institution_id !== (string) $user->institution_id) {
+            abort(403);
+        }
     }
 
     // ── Helper: generar código único ──────────────────────────────────────────

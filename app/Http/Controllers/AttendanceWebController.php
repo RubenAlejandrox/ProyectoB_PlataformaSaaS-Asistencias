@@ -9,6 +9,7 @@ use App\Models\Enrollment;
 use App\Models\Justification;
 use App\Models\Session;
 use App\Models\SessionKey;
+use App\Models\User;
 use App\Services\AttendanceProgressService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -38,6 +39,7 @@ class AttendanceWebController extends Controller
         $selectedId = $request->query('classroom', $classrooms->first()?->id);
         $classroom  = $classrooms->firstWhere('id', $selectedId) ?? $classrooms->first();
 
+        $todaySession  = null;
         $activeSession = null;
         $activeKey     = null;
         $students      = collect();
@@ -60,18 +62,19 @@ class AttendanceWebController extends Controller
                 ->where('is_active', true)
                 ->count();
 
-            $activeSession = Session::withoutGlobalScopes()
+            $todaySession = Session::withoutGlobalScopes()
                 ->where('classroom_id', $classroom->id)
-                ->where('is_active', true)
                 ->whereDate('session_date', today())
                 ->with(['sessionKeys' => fn ($q) => $q->where('is_active', true)->latest()])
+                ->orderByDesc('created_at')
                 ->first();
 
-            $activeKey = $activeSession?->sessionKeys->first();
+            $activeSession = ($todaySession && $todaySession->is_active) ? $todaySession : null;
+            $activeKey     = $activeSession?->sessionKeys->first();
 
-            if ($activeSession) {
+            if ($todaySession) {
                 $stats['present_today'] = Attendance::withoutGlobalScopes()
-                    ->where('session_id', $activeSession->id)
+                    ->where('session_id', $todaySession->id)
                     ->where('status', 'present')
                     ->count();
             }
@@ -82,9 +85,10 @@ class AttendanceWebController extends Controller
                 ->with('student:id,first_name,last_name,email')
                 ->get();
 
-            $todayAttendances = $activeSession
+            $todayAttendances = $todaySession
                 ? Attendance::withoutGlobalScopes()
-                    ->where('session_id', $activeSession->id)
+                    ->with('justification:id,attendance_id,status')
+                    ->where('session_id', $todaySession->id)
                     ->get()
                     ->keyBy('student_id')
                 : collect();
@@ -99,14 +103,18 @@ class AttendanceWebController extends Controller
 
                 $today = $todayAttendances->get($student->id);
 
+                $justStatus = $today?->justification?->status;
+
                 return [
-                    'id'            => $student->id,
-                    'name'          => trim($student->first_name.' '.$student->last_name),
-                    'initials'      => strtoupper(substr($student->first_name, 0, 1).substr($student->last_name, 0, 1)),
-                    'pct'           => $progress['attendance_pct'],
-                    'light'         => $progress['light'],
-                    'today_status'  => $today?->status,
-                    'today_time'    => $today?->created_at?->format('H:i'),
+                    'id'                       => $student->id,
+                    'name'                     => trim($student->first_name.' '.$student->last_name),
+                    'initials'                 => strtoupper(substr($student->first_name, 0, 1).substr($student->last_name, 0, 1)),
+                    'pct'                      => $progress['attendance_pct'],
+                    'light'                    => $progress['light'],
+                    'today_status'             => $today?->status,
+                    'today_time'               => $today?->created_at?->format('H:i'),
+                    'attendance_id'            => $today?->id,
+                    'has_approved_justification' => $justStatus === 'approved',
                 ];
             });
 
@@ -126,6 +134,7 @@ class AttendanceWebController extends Controller
         return view('asistencias.docente', [
             'classrooms'      => $classrooms,
             'classroom'       => $classroom,
+            'todaySession'    => $todaySession ?? null,
             'activeSession'   => $activeSession,
             'activeKey'       => $activeKey,
             'students'        => $students,
@@ -271,6 +280,51 @@ class AttendanceWebController extends Controller
             ->with('success', 'Clave generada: '.$sessionKey->access_key);
     }
 
+    /**
+     * Detiene la clave activa antes de que expire (sin cerrar la sesión ni marcar faltas).
+     */
+    public function stopKey(Request $request, Session $session): JsonResponse|RedirectResponse
+    {
+        $session->loadMissing('classroom');
+
+        if ($session->classroom->teacher_id !== auth()->user()->id) {
+            abort(403);
+        }
+
+        if (! $session->is_active) {
+            $message = 'La sesión ya está cerrada.';
+
+            return $request->expectsJson()
+                ? response()->json(['message' => $message], 422)
+                : back()->withErrors(['general' => $message]);
+        }
+
+        $deactivated = $session->sessionKeys()
+            ->where('is_active', true)
+            ->update([
+                'is_active'  => false,
+                'expires_at' => now(),
+            ]);
+
+        if ($deactivated === 0) {
+            $message = 'No hay una clave activa para detener.';
+
+            return $request->expectsJson()
+                ? response()->json(['message' => $message], 422)
+                : back()->withErrors(['general' => $message]);
+        }
+
+        $message = 'Clave de asistencia detenida. Los alumnos ya no pueden registrar con esta clave.';
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => $message]);
+        }
+
+        return redirect()
+            ->route('asistencias.docente', ['classroom' => $session->classroom_id])
+            ->with('success', $message);
+    }
+
     public function closeSession(Request $request, Session $session): JsonResponse|RedirectResponse
     {
         $session->loadMissing('classroom');
@@ -289,7 +343,10 @@ class AttendanceWebController extends Controller
         DB::transaction(function () use ($session) {
             $session->sessionKeys()
                 ->where('is_active', true)
-                ->update(['is_active' => false]);
+                ->update([
+                    'is_active'  => false,
+                    'expires_at' => now(),
+                ]);
 
             $enrolledIds = Enrollment::withoutGlobalScopes()
                 ->where('classroom_id', $session->classroom_id)
@@ -321,6 +378,130 @@ class AttendanceWebController extends Controller
         return redirect()
             ->route('asistencias.docente', ['classroom' => $session->classroom_id])
             ->with('success', 'Sesión cerrada. Faltas registradas para alumnos sin asistencia.');
+    }
+
+    public function updateStudentAttendance(Request $request, Session $session, User $student): JsonResponse
+    {
+        $session->loadMissing('classroom');
+
+        if ($session->classroom->teacher_id !== auth()->user()->id) {
+            abort(403);
+        }
+
+        if (! $session->session_date->isToday()) {
+            return response()->json([
+                'message' => 'Solo puedes modificar asistencias de la sesión de hoy.',
+            ], 422);
+        }
+
+        $request->validate([
+            'status' => 'required|in:present,absent,pending',
+        ]);
+
+        $enrolled = Enrollment::withoutGlobalScopes()
+            ->where('classroom_id', $session->classroom_id)
+            ->where('student_id', $student->id)
+            ->where('is_active', true)
+            ->exists();
+
+        if (! $enrolled) {
+            return response()->json([
+                'message' => 'El alumno no está inscrito en esta aula.',
+            ], 403);
+        }
+
+        $classroomId   = $session->classroom_id;
+        $previousLight = $this->progressService->calculate($student->id, $classroomId)['light'];
+        $targetStatus  = $request->string('status')->toString();
+        $wasPresent    = false;
+
+        try {
+            DB::transaction(function () use ($session, $student, $targetStatus, &$wasPresent) {
+                $attendance = Attendance::withoutGlobalScopes()
+                    ->where('session_id', $session->id)
+                    ->where('student_id', $student->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($targetStatus === 'pending') {
+                    if (! $attendance) {
+                        return;
+                    }
+
+                    if ($attendance->justification()->where('status', 'approved')->exists()) {
+                        throw new \RuntimeException(
+                            'No se puede dejar pendiente: el justificante ya fue aprobado.'
+                        );
+                    }
+
+                    $attendance->justification()?->delete();
+                    $attendance->delete();
+
+                    return;
+                }
+
+                if ($attendance) {
+                    if ($attendance->justification()->where('status', 'pending')->exists() && $targetStatus === 'present') {
+                        $attendance->justification()->delete();
+                    }
+
+                    $previousStatus = $attendance->status;
+                    $attendance->update(['status' => $targetStatus]);
+
+                    if ($targetStatus === 'absent' && $previousStatus === 'present') {
+                        Attendance::withoutGlobalScopes()
+                            ->where('id', $attendance->id)
+                            ->update([
+                                'created_at' => now(),
+                                'updated_at' => now(),
+                            ]);
+                    }
+
+                    $wasPresent = $targetStatus === 'present';
+                } else {
+                    $attendance = Attendance::create([
+                        'session_id' => $session->id,
+                        'student_id' => $student->id,
+                        'status'     => $targetStatus,
+                    ]);
+                    $wasPresent = $targetStatus === 'present';
+                }
+            });
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $attendance = Attendance::withoutGlobalScopes()
+            ->where('session_id', $session->id)
+            ->where('student_id', $student->id)
+            ->first();
+
+        if ($wasPresent && $attendance) {
+            event(new AttendanceRegistered($attendance, $classroomId));
+        }
+
+        $this->progressService->dispatchTrafficLightIfChanged($student->id, $classroomId, $previousLight);
+
+        $presentCount = Attendance::withoutGlobalScopes()
+            ->where('session_id', $session->id)
+            ->where('status', 'present')
+            ->count();
+
+        $labels = [
+            'present' => 'Asistencia registrada manualmente.',
+            'absent'  => 'Falta registrada. El alumno puede enviar justificante (72 h).',
+            'pending' => 'Estado restablecido a pendiente.',
+        ];
+
+        return response()->json([
+            'message' => $labels[$targetStatus] ?? 'Estado actualizado.',
+            'data'    => [
+                'student_id'    => $student->id,
+                'status'        => $targetStatus === 'pending' ? 'pending' : $attendance?->status,
+                'registered_at' => $attendance?->created_at?->format('H:i'),
+                'present_count' => $presentCount,
+            ],
+        ]);
     }
 
     public function register(Request $request): RedirectResponse|JsonResponse

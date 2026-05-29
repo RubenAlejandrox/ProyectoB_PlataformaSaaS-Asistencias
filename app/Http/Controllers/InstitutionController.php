@@ -50,15 +50,15 @@ class InstitutionController extends Controller
         $logoUrl = null;
 
         if ($request->hasFile('logo')) {
-            $logoUrl = $this->storage->upload(
-                $request->file('logo'),
-                'institution-logos'
-            );
+            $logoBucket = $this->storage->institutionLogosBucket();
+            $logoUrl    = $this->storage->upload($request->file('logo'), $logoBucket);
 
-            if (!$logoUrl) {
+            if (! $logoUrl) {
+                $detail = $this->storage->getLastError() ?? 'Error al subir el logo.';
+
                 return back()
                     ->withInput()
-                    ->withErrors(['logo' => 'Error al subir el logo. Intenta de nuevo.']);
+                    ->withErrors(['logo' => config('app.debug') ? $detail : 'Error al subir el logo. Intenta de nuevo.']);
             }
         }
 
@@ -89,25 +89,25 @@ class InstitutionController extends Controller
         $logoUrl = $institution->logo_url;
 
         if ($request->hasFile('logo')) {
-            // Eliminar logo anterior si existe
+            $logoBucket = $this->storage->institutionLogosBucket();
+
             if ($institution->logo_url) {
                 $oldPath = str_replace(
-                    config('services.supabase.url') . '/storage/v1/object/public/institution-logos/',
+                    config('services.supabase.url') . "/storage/v1/object/public/{$logoBucket}/",
                     '',
                     $institution->logo_url
                 );
-                $this->storage->delete('institution-logos', $oldPath);
+                $this->storage->delete($logoBucket, $oldPath);
             }
 
-            $logoUrl = $this->storage->upload(
-                $request->file('logo'),
-                'institution-logos'
-            );
+            $logoUrl = $this->storage->upload($request->file('logo'), $logoBucket);
 
-            if (!$logoUrl) {
+            if (! $logoUrl) {
+                $detail = $this->storage->getLastError() ?? 'Error al subir el logo.';
+
                 return back()
                     ->withInput()
-                    ->withErrors(['logo' => 'Error al subir el logo. Intenta de nuevo.']);
+                    ->withErrors(['logo' => config('app.debug') ? $detail : 'Error al subir el logo. Intenta de nuevo.']);
             }
         }
 

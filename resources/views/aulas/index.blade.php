@@ -214,10 +214,17 @@
                         ->sortByDesc('created_at')
                         ->first();
                 @endphp
-                <div class="aula-card {{ !$classroom->is_active ? 'aula-card--cerrada' : '' }}"
+                <div class="aula-card {{ !$isStudent ? 'aula-card--clickable' : '' }} {{ !$classroom->is_active ? 'aula-card--cerrada' : '' }}"
                      data-tab="{{ $tabStatus }}"
                      data-classroom-id="{{ $classroom->id }}"
                      data-classroom-name="{{ $classroom->subject_name }}"
+                     @unless($isStudent)
+                     data-detail-url="{{ route('aulas.show', $classroom) }}"
+                     role="link"
+                     tabindex="0"
+                     onclick="if(!event.target.closest('button,a,form,.aula-acciones,.aula-code-block,.btn-copy-code')) window.location.href=this.dataset.detailUrl"
+                     onkeydown="if(event.key==='Enter'&&!event.target.closest('button,a,form')) window.location.href=this.dataset.detailUrl"
+                     @endunless
                      @if($latestCode?->expires_at) data-latest-expires-at="{{ $latestCode->expires_at->toIso8601String() }}" @endif
                      data-can-regenerate="{{ ($classroom->is_active && auth()->id() === $classroom->teacher_id) ? '1' : '0' }}">
                     <div class="aula-card-header">
@@ -282,21 +289,12 @@
                             </a>
                         @else
                         <div class="aula-acciones">
-                            <button class="action-btn" title="Ver detalle"
-                                onclick="abrirDetalle(
-                                    '{{ $classroom->id }}',
-                                    '{{ addslashes($classroom->subject_name) }}',
-                                    '{{ $classroom->period }}',
-                                    {{ $classroom->enrollments_count }},
-                                    {{ $classroom->max_capacity }},
-                                    {{ $classroom->sessions_count }},
-                                    {{ $classroom->min_attendance_pct }},
-                                    '{{ addslashes(($teacher?->first_name ?? '') . ' ' . ($teacher?->last_name ?? '')) }}',
-                                    {{ $classroom->is_active ? 'true' : 'false' }},
-                                    '{{ $activeCode?->code ?? '' }}'
-                                )">
+                            <a href="{{ route('aulas.show', $classroom) }}"
+                               class="action-btn"
+                               title="Ver detalle del aula"
+                               onclick="event.stopPropagation()">
                                 <i class="fas fa-eye"></i>
-                            </button>
+                            </a>
                             @if($classroom->is_active && auth()->user()->id === $classroom->teacher_id)
                                 {{-- Generar nuevo código --}}
                                 <form method="POST"
@@ -429,21 +427,11 @@
                                                 <i class="fas fa-copy"></i>
                                             </button>
                                         @endif
-                                        <button class="action-btn" title="Ver detalle"
-                                            onclick="abrirDetalle(
-                                                '{{ $classroom->id }}',
-                                                '{{ addslashes($classroom->subject_name) }}',
-                                                '{{ $classroom->period }}',
-                                                {{ $classroom->enrollments_count }},
-                                                {{ $classroom->max_capacity }},
-                                                {{ $classroom->sessions_count }},
-                                                {{ $classroom->min_attendance_pct }},
-                                                '{{ addslashes(($teacher?->first_name ?? '') . ' ' . ($teacher?->last_name ?? '')) }}',
-                                                {{ $classroom->is_active ? 'true' : 'false' }},
-                                                '{{ $activeCode?->code ?? '' }}'
-                                            )">
+                                        <a href="{{ route('aulas.show', $classroom) }}"
+                                           class="action-btn"
+                                           title="Ver detalle del aula">
                                             <i class="fas fa-eye"></i>
-                                        </button>
+                                        </a>
                                         @if($classroom->is_active && auth()->id() === $classroom->teacher_id)
                                             <form method="POST"
                                                   action="{{ route('aulas.generate-code', $classroom->id) }}"
@@ -515,61 +503,6 @@
 </div>
 @endif
 
-{{-- MODAL: DETALLE AULA --}}
-<div class="modal-overlay" id="modalDetalle">
-    <div class="modal modal-md">
-        <div class="modal-header">
-            <div>
-                <h3 class="modal-title" id="detalleTitulo">—</h3>
-                <p class="modal-subtitle" id="detalleSubtitulo">—</p>
-            </div>
-            <button class="modal-close" onclick="cerrarModal('modalDetalle')">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <div class="modal-body">
-            <div class="detalle-grid">
-                <div class="detalle-item">
-                    <span class="detalle-label">Docente</span>
-                    <span class="detalle-value" id="detalleDocente">—</span>
-                </div>
-                <div class="detalle-item">
-                    <span class="detalle-label">Estado del ciclo</span>
-                    <span class="detalle-value" id="detalleEstado">—</span>
-                </div>
-                <div class="detalle-item">
-                    <span class="detalle-label">Período</span>
-                    <span class="detalle-value" id="detallePeriodo">—</span>
-                </div>
-                <div class="detalle-item">
-                    <span class="detalle-label">Alumnos inscritos</span>
-                    <span class="detalle-value" id="detalleAlumnos">—</span>
-                </div>
-                <div class="detalle-item">
-                    <span class="detalle-label">Sesiones realizadas</span>
-                    <span class="detalle-value" id="detalleSesiones">—</span>
-                </div>
-                <div class="detalle-item">
-                    <span class="detalle-label">Asistencia mínima</span>
-                    <span class="detalle-value" id="detalleMinAsist">—</span>
-                </div>
-                <div class="detalle-item" id="detalleCodigoWrap">
-                    <span class="detalle-label">Código activo</span>
-                    <span class="detalle-value" id="detalleCodigo"
-                          style="font-size:1.2rem;font-weight:800;letter-spacing:.2rem;color:#F28B2C;">—</span>
-                </div>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-outline btn-md" onclick="cerrarModal('modalDetalle')">Cerrar</button>
-            <a href="{{ $isStudent ? route('asistencias.alumno') : route('asistencias.docente') }}" class="btn btn-primary btn-md">
-                <i class="fas fa-clipboard-check"></i>
-                Ir a asistencias
-            </a>
-        </div>
-    </div>
-</div>
-
 @unless($isStudent)
 {{-- MODAL: REGENERAR CÓDIGO EXPIRADO --}}
 <div class="modal-overlay" id="modalRegenCode">
@@ -607,7 +540,6 @@
     function cerrarModal(id){ document.getElementById(id)?.classList.remove('active'); }
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
-            cerrarModal('modalDetalle');
             cerrarModal('modalRegenCode');
             cerrarModal('modalInscripcionAlumno');
         }
@@ -619,21 +551,6 @@
     @if($isStudent && $errors->has('invitation_code'))
     document.addEventListener('DOMContentLoaded', () => abrirModal('modalInscripcionAlumno'));
     @endif
-
-    function abrirDetalle(id, nombre, periodo, alumnos, capacidad, sesiones, minAsist, docente, activo, codigo) {
-        document.getElementById('detalleTitulo').textContent    = nombre;
-        document.getElementById('detalleSubtitulo').textContent = periodo;
-        document.getElementById('detalleDocente').textContent   = docente.trim() || '—';
-        document.getElementById('detallePeriodo').textContent   = periodo;
-        document.getElementById('detalleAlumnos').textContent   = `${alumnos} / ${capacidad} cupo`;
-        document.getElementById('detalleSesiones').textContent  = sesiones;
-        document.getElementById('detalleMinAsist').textContent  = `${minAsist}%`;
-        document.getElementById('detalleCodigo').textContent    = codigo || 'Sin código activo';
-        const estadoEl = document.getElementById('detalleEstado');
-        estadoEl.textContent = activo ? 'Abierto' : 'Cerrado';
-        estadoEl.className   = 'status ' + (activo ? 'status-open' : 'status-closed');
-        abrirModal('modalDetalle');
-    }
 
     if (!isStudentView) {
     // ── Tabs ──────────────────────────────────────────────────────────────────

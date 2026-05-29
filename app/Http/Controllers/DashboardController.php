@@ -3,10 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
+use App\Models\AuditLog;
 use App\Models\Classroom;
-use App\Models\Institution;
+use App\Models\Enrollment;
 use App\Models\Justification;
-use App\Models\Subscription;
+use App\Models\Session;
 use App\Models\User;
 use Illuminate\Http\Request;
 
@@ -28,20 +29,68 @@ class DashboardController extends Controller
     private function adminDashboard($user)
     {
         $institution = $user->institution;
+        $institutionId = $institution?->id;
+
+        $activeSubscription = $institution
+            ? $institution->subscriptions()
+                ->where('status', 'active')
+                ->where('end_date', '>=', now()->toDateString())
+                ->with('plan')
+                ->latest('end_date')
+                ->first()
+            : null;
+
+        $activeClassrooms = $institutionId
+            ? Classroom::withoutGlobalScopes()
+                ->where('institution_id', $institutionId)
+                ->where('is_active', true)
+                ->count()
+            : 0;
+
+        $enrolledStudents = $institutionId
+            ? Enrollment::withoutGlobalScopes()
+                ->where('is_active', true)
+                ->whereHas('classroom', fn ($q) => $q->where('institution_id', $institutionId))
+                ->distinct('student_id')
+                ->count('student_id')
+            : 0;
 
         $stats = [
-            'total_classrooms'    => Classroom::count(),
-            'total_teachers'      => User::role('Teacher')->count(),
-            'total_students'      => User::role('Student')->count(),
-            'pending_justifications' => Justification::where('status', 'pending')->count(),
-            'active_subscription' => $institution->subscriptions()
-                                        ->where('status', 'active')
-                                        ->with('plan')
-                                        ->latest()
-                                        ->first(),
+            'institution_name'       => $institution?->name,
+            'total_classrooms'       => $activeClassrooms,
+            'total_teachers'         => $institutionId
+                ? User::role('Teacher')->where('institution_id', $institutionId)->where('is_active', true)->count()
+                : 0,
+            'total_students'         => $enrolledStudents,
+            'pending_justifications' => $institutionId
+                ? Justification::withoutGlobalScopes()
+                    ->where('status', 'pending')
+                    ->whereHas('attendance.session.classroom', fn ($q) => $q->where('institution_id', $institutionId))
+                    ->count()
+                : 0,
+            'sessions_this_month'    => $institutionId
+                ? Session::withoutGlobalScopes()
+                    ->whereHas('classroom', fn ($q) => $q->where('institution_id', $institutionId))
+                    ->whereBetween('session_date', [now()->startOfMonth(), now()->endOfMonth()])
+                    ->count()
+                : 0,
+            'active_subscription'    => $activeSubscription,
+            'plan_used_classrooms'   => $activeClassrooms,
+            'plan_used_students'     => $enrolledStudents,
+            'plan_max_classrooms'    => $activeSubscription?->plan?->max_classrooms ?? 0,
+            'plan_max_students'      => $activeSubscription?->plan?->max_students ?? 0,
         ];
 
-        return view('dashboard.admin', compact('user', 'stats'));
+        $recentActivity = $institutionId
+            ? AuditLog::withoutGlobalScopes()
+                ->with('user:id,first_name,last_name,email,institution_id')
+                ->whereHas('user', fn ($q) => $q->where('institution_id', $institutionId))
+                ->orderByDesc('created_at')
+                ->limit(20)
+                ->get()
+            : collect();
+
+        return view('dashboard.admin', compact('user', 'stats', 'recentActivity'));
     }
 
     // ── Teacher ───────────────────────────────────────────────────────────────
