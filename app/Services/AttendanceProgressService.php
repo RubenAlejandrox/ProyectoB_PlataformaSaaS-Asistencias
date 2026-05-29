@@ -8,9 +8,14 @@ use App\Models\Classroom;
 use App\Models\Justification;
 use App\Models\Session;
 use App\Models\User;
+use Carbon\Carbon;
+use Illuminate\Support\Collection;
 
 class AttendanceProgressService
 {
+    public function __construct(
+        private StudentNotificationService $notifications
+    ) {}
     /**
      * Calcula P = (present + approved) / total × 100 y determina semáforo.
      */
@@ -89,7 +94,164 @@ class AttendanceProgressService
             percentage: $current['attendance_pct'],
         ));
 
+        $this->notifications->notifyTrafficLightChange(
+            $studentId,
+            $classroomId,
+            $newLight,
+            $current['attendance_pct'],
+            $previousLight
+        );
+
         return $newLight;
+    }
+
+    /**
+     * Cuántas faltas más (sin justificar) puede tener y seguir en o por encima del umbral.
+     */
+    public function projectRemainingAbsences(array $progress): array
+    {
+        $total     = (int) $progress['total_sessions'];
+        $credits   = (int) $progress['present_count'] + (int) $progress['approved_count'];
+        $threshold = (int) $progress['threshold'];
+        $pct       = (float) $progress['attendance_pct'];
+
+        if ($total === 0) {
+            return [
+                'remaining' => null,
+                'message'   => 'Aún no hay sesiones registradas en esta materia.',
+            ];
+        }
+
+        if ($threshold <= 0) {
+            return [
+                'remaining' => null,
+                'message'   => 'No hay umbral mínimo configurado para esta aula.',
+            ];
+        }
+
+        $minTotalSessions = (int) ceil($credits / ($threshold / 100));
+        $remaining        = max(0, $minTotalSessions - $total);
+
+        if ($pct < $threshold) {
+            return [
+                'remaining' => 0,
+                'message'   => 'Ya estás por debajo del umbral mínimo. Considera justificar faltas o asistir a las próximas sesiones.',
+            ];
+        }
+
+        if ($remaining === 0) {
+            return [
+                'remaining' => 0,
+                'message'   => 'No puedes faltar en las próximas sesiones sin bajar del umbral mínimo.',
+            ];
+        }
+
+        $word = $remaining === 1 ? 'falta' : 'faltas';
+
+        return [
+            'remaining' => $remaining,
+            'message'   => "Puedes tener hasta {$remaining} {$word} más (sin justificar) y mantener el umbral del {$threshold}%.",
+        ];
+    }
+
+    /**
+     * Calendario mensual con estado por día de sesión.
+     *
+     * @return array{year:int,month:int,month_label:string,weeks:array,legend:array}
+     */
+    public function buildMonthlyCalendar(
+        string $studentId,
+        string $classroomId,
+        ?int $year = null,
+        ?int $month = null
+    ): array {
+        $cursor = Carbon::create($year ?? now()->year, $month ?? now()->month, 1);
+        $start  = $cursor->copy()->startOfMonth();
+        $end    = $cursor->copy()->endOfMonth();
+
+        $sessions = Session::withoutGlobalScopes()
+            ->where('classroom_id', $classroomId)
+            ->whereBetween('session_date', [$start->toDateString(), $end->toDateString()])
+            ->orderBy('session_date')
+            ->get();
+
+        $attendances = Attendance::withoutGlobalScopes()
+            ->with('justification')
+            ->where('student_id', $studentId)
+            ->whereIn('session_id', $sessions->pluck('id'))
+            ->get()
+            ->keyBy('session_id');
+
+        $dayMap = [];
+        foreach ($sessions as $session) {
+            $key        = $session->session_date->format('Y-m-d');
+            $attendance = $attendances->get($session->id);
+            $dayMap[$key] = $this->calendarDayStatus($attendance);
+        }
+
+        $weeks      = [];
+        $dayPointer = $start->copy()->startOfWeek(Carbon::MONDAY);
+        $lastWeek   = $end->copy()->endOfWeek(Carbon::SUNDAY);
+
+        while ($dayPointer->lte($lastWeek)) {
+            $week = [];
+            for ($i = 0; $i < 7; $i++) {
+                $dateKey = $dayPointer->format('Y-m-d');
+                $week[]  = [
+                    'date'          => $dateKey,
+                    'day'           => (int) $dayPointer->format('j'),
+                    'in_month'      => $dayPointer->month === $cursor->month,
+                    'status'        => $dayMap[$dateKey] ?? 'none',
+                    'has_session'   => isset($dayMap[$dateKey]),
+                ];
+                $dayPointer->addDay();
+            }
+            $weeks[] = $week;
+        }
+
+        return [
+            'year'        => $cursor->year,
+            'month'       => $cursor->month,
+            'month_label' => $cursor->locale(app()->getLocale())->isoFormat('MMMM YYYY'),
+            'weeks'       => $weeks,
+            'legend'      => [
+                'present'  => 'Asistencia',
+                'absent'   => 'Falta',
+                'justified'=> 'Justificado',
+                'pending'  => 'Justificante en revisión',
+            ],
+        ];
+    }
+
+    private function calendarDayStatus(?Attendance $attendance): string
+    {
+        if (! $attendance) {
+            return 'none';
+        }
+
+        if ($attendance->status === 'present') {
+            return 'present';
+        }
+
+        $just = $attendance->justification;
+        if ($just?->status === 'approved') {
+            return 'justified';
+        }
+        if ($just?->status === 'pending') {
+            return 'pending';
+        }
+
+        return 'absent';
+    }
+
+    public function justificationsForClassroom(string $studentId, string $classroomId): Collection
+    {
+        return Justification::withoutGlobalScopes()
+            ->with(['attendance.session', 'reviewer:id,first_name,last_name'])
+            ->where('student_id', $studentId)
+            ->whereHas('attendance.session', fn ($q) => $q->where('classroom_id', $classroomId))
+            ->orderByDesc('created_at')
+            ->get();
     }
 
     public function calculateForStudent(User $student): array

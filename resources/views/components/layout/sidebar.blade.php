@@ -97,6 +97,13 @@
                 <span class="nav-text">Membresías</span>
             </a>
 
+            <a href="{{ route('admin.pagos.index') }}"
+               class="nav-item {{ request()->routeIs('admin.pagos.*') ? 'active' : '' }}"
+               data-tooltip="Historial de Pagos">
+                <i class="fas fa-credit-card nav-icon"></i>
+                <span class="nav-text">Historial de Pagos</span>
+            </a>
+
             <a href="{{ route('admin.edicion') }}"
                class="nav-item {{ request()->routeIs('admin.edicion') ? 'active' : '' }}"
                data-tooltip="Edición Admin">
@@ -204,6 +211,17 @@
                data-tooltip="Registrar Asistencia">
                 <i class="fas fa-qrcode nav-icon"></i>
                 <span class="nav-text">Registrar Asistencia</span>
+            </a>
+
+            <a href="{{ route('notificaciones.index') }}"
+               class="nav-item {{ request()->routeIs('notificaciones.*') ? 'active' : '' }}"
+               data-tooltip="Notificaciones">
+                <i class="fas fa-bell nav-icon"></i>
+                <span class="nav-text">Notificaciones</span>
+                @php $unreadNotif = \App\Models\StudentNotification::where('user_id', auth()->user()->id)->whereNull('read_at')->count(); @endphp
+                @if($unreadNotif > 0)
+                    <span style="margin-left:auto;background:#F28B2C;color:#fff;font-size:.7rem;font-weight:700;padding:.1rem .45rem;border-radius:999px;">{{ $unreadNotif > 9 ? '9+' : $unreadNotif }}</span>
+                @endif
             </a>
 
             <a href="{{ route('justificantes.index') }}"

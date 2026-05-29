@@ -38,7 +38,7 @@ Route::middleware(['auth:sanctum', 'plan', 'auditoria'])->group(function () {
         Route::apiResource('plans', PlanController::class);
         Route::get('subscriptions', [SubscriptionController::class, 'index']);
         Route::post('subscriptions/upgrade', [SubscriptionController::class, 'upgrade']);
-        Route::get('payments', [PaymentController::class, 'index']);
+        Route::get('payments', [PaymentController::class, 'indexApi']);
         Route::post('admin/corrections', [AdminEditController::class, 'correctAttendance']);
         Route::post('admin/drop-student/{enrollment}', [AdminEditController::class, 'dropStudent']);
         Route::delete('admin/delete-session/{session}', [AdminEditController::class, 'deleteSession']);

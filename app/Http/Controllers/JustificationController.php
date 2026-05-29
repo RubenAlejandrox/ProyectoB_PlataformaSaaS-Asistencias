@@ -6,6 +6,7 @@ use App\Models\Attendance;
 use App\Models\Classroom;
 use App\Models\Justification;
 use App\Services\AttendanceProgressService;
+use App\Services\StudentNotificationService;
 use App\Services\SupabaseStorageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -18,7 +19,8 @@ class JustificationController extends Controller
 
     public function __construct(
         private SupabaseStorageService $storage,
-        private AttendanceProgressService $progressService
+        private AttendanceProgressService $progressService,
+        private StudentNotificationService $notificationService
     ) {}
 
     // ── WEB: listado por rol ──────────────────────────────────────────────────
@@ -262,6 +264,10 @@ class JustificationController extends Controller
                 'reviewed_at' => now(),
                 'reviewed_by' => auth()->user()->id,
             ]);
+
+            $justification = $justification->fresh(['attendance.session.classroom']);
+
+            $this->notificationService->notifyJustificationReviewed($justification);
 
             if ($request->status === 'approved') {
                 $this->progressService->dispatchTrafficLightIfChanged(

@@ -134,4 +134,31 @@ class ProgressServiceTest extends TestCase
         $this->assertEquals(0.0, $result['attendance_pct']);
         $this->assertEquals('red', $result['light']);
     }
+
+    #[Test]
+    public function projects_remaining_absences_before_threshold(): void
+    {
+        for ($i = 0; $i < 10; $i++) {
+            $session = Session::create([
+                'classroom_id' => $this->classroom->id,
+                'session_date' => now()->subDays($i)->toDateString(),
+                'started_at'   => '08:00:00',
+                'is_active'    => false,
+            ]);
+
+            if ($i < 8) {
+                Attendance::create([
+                    'session_id' => $session->id,
+                    'student_id' => $this->student->id,
+                    'status'     => 'present',
+                ]);
+            }
+        }
+
+        $progress   = $this->service->calculate($this->student->id, $this->classroom->id);
+        $projection = $this->service->projectRemainingAbsences($progress);
+
+        $this->assertEquals(80.0, $progress['attendance_pct']);
+        $this->assertEquals(0, $projection['remaining']);
+    }
 }

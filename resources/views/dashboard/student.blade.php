@@ -112,7 +112,9 @@
                 <div style="margin-bottom:1.5rem;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.4rem;">
                         <div>
-                            <strong>{{ $item['classroom']->subject_name }}</strong>
+                            <a href="{{ route('materias.show', $item['classroom']->id) }}" style="color:inherit;text-decoration:none;">
+                                <strong>{{ $item['classroom']->subject_name }}</strong>
+                            </a>
                             <span style="font-size:.8rem; color:var(--text-secondary); margin-left:.5rem;">
                                 {{ $item['classroom']->period }}
                             </span>

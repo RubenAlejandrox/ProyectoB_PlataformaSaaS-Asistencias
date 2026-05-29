@@ -273,6 +273,14 @@
                             </small>
                         </div>
                         @endunless
+                        @if($isStudent)
+                            <a href="{{ route('materias.show', $classroom) }}"
+                               class="btn btn-primary btn-md"
+                               style="width:100%;justify-content:center;margin-top:.5rem;">
+                                <i class="fas fa-chart-line"></i>
+                                Ver detalle de materia
+                            </a>
+                        @else
                         <div class="aula-acciones">
                             <button class="action-btn" title="Ver detalle"
                                 onclick="abrirDetalle(
@@ -289,7 +297,7 @@
                                 )">
                                 <i class="fas fa-eye"></i>
                             </button>
-                            @if(!$isStudent && $classroom->is_active && auth()->id() === $classroom->teacher_id)
+                            @if($classroom->is_active && auth()->user()->id === $classroom->teacher_id)
                                 {{-- Generar nuevo código --}}
                                 <form method="POST"
                                       action="{{ route('aulas.generate-code', $classroom->id) }}"
@@ -301,7 +309,7 @@
                                     </button>
                                 </form>
                             @endif
-                            @if(!$isStudent && (auth()->id() === $classroom->teacher_id || auth()->user()->hasRole('Administrator')))
+                            @if(auth()->user()->id === $classroom->teacher_id || auth()->user()->hasRole('Administrator'))
                                 {{-- Toggle estado --}}
                                 <form method="POST"
                                       action="{{ route('aulas.toggle', $classroom->id) }}"
@@ -316,6 +324,7 @@
                                 </form>
                             @endif
                         </div>
+                        @endif
                     </div>
                 </div>
             @empty

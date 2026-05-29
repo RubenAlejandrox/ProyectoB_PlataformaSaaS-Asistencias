@@ -15,6 +15,9 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\CycleController;
 use App\Http\Controllers\AdminEditController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\MateriaController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PaymentController;
 
 
 use Illuminate\Support\Facades\Route;
@@ -68,6 +71,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/paypal/cancel',       [SubscriptionController::class, 'paypalCancel'])->name('paypal.cancel');
         Route::get('/membresias',          [SubscriptionController::class, 'index'])->name('membresias.index');
         Route::post('/membresias/upgrade', [SubscriptionController::class, 'upgrade'])->name('membresias.upgrade');
+        Route::get('/admin/pagos',         [PaymentController::class, 'index'])->name('admin.pagos.index');
+        Route::get('/admin/pagos/{payment}/factura', [PaymentController::class, 'invoice'])->name('admin.pagos.factura');
     });
 
     // Edición Administrativa
@@ -131,6 +136,14 @@ Route::middleware(['auth'])->group(function () {
             ->name('asistencias.alumno');
         Route::post('/asistencias/alumno/registrar', [AttendanceWebController::class, 'register'])
             ->name('asistencias.alumno.registrar');
+        Route::get('/materias/{classroom}', [MateriaController::class, 'show'])
+            ->name('materias.show');
+        Route::get('/notificaciones', [NotificationController::class, 'index'])
+            ->name('notificaciones.index');
+        Route::patch('/notificaciones/{studentNotification}/read', [NotificationController::class, 'markRead'])
+            ->name('notificaciones.read');
+        Route::post('/notificaciones/read-all', [NotificationController::class, 'markAllRead'])
+            ->name('notificaciones.read-all');
     });
 
     Route::post('/inscripciones', [EnrollmentController::class, 'storeWeb'])->name('enrollments.store');

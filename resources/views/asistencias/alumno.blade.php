@@ -199,7 +199,13 @@
                         @endphp
                         <div class="materia-progreso" data-classroom-id="{{ $subject['classroom_id'] }}">
                             <div class="materia-header">
-                                <span class="materia-nombre">{{ $subject['classroom']->subject_name }}</span>
+                                <a href="{{ route('materias.show', $subject['classroom_id']) }}"
+                                   class="materia-nombre"
+                                   style="color:inherit;text-decoration:none;"
+                                   title="Ver detalle de materia">
+                                    {{ $subject['classroom']->subject_name }}
+                                    <i class="fas fa-external-link-alt" style="font-size:.7rem;opacity:.6;"></i>
+                                </a>
                                 <span class="semaforo {{ $semClass }}" title="Semáforo {{ $subject['light'] }}">
                                     <i class="fas fa-circle"></i>
                                 </span>
