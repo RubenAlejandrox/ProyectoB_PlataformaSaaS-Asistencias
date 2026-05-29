@@ -22,6 +22,24 @@
             <i class="fas fa-check-circle"></i><span>{{ session('success') }}</span>
         </div>
     @endif
+    @unless($mailConfigured ?? true)
+        <div style="display:flex;align-items:flex-start;gap:.75rem;background:#fef3c7;border:1px solid #f59e0b;border-left:4px solid #f59e0b;border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.2rem;color:#92400e;">
+            <i class="fas fa-exclamation-triangle" style="font-size:1.25rem;margin-top:.1rem;"></i>
+            <div>
+                <p style="font-weight:700;margin:0 0 .35rem;">El correo no está configurado para envío real</p>
+                <p style="margin:0;font-size:.9rem;line-height:1.5;">
+                    <code>MAIL_MAILER</code> está en <strong>log</strong> o el remitente es inválido.
+                    Los mensajes no llegan a Gmail hasta configurar SMTP en <code>.env</code>
+                    (por ejemplo Gmail con contraseña de aplicación).
+                </p>
+            </div>
+        </div>
+    @endunless
+    @if($errors->has('email'))
+        <div style="display:flex;align-items:center;gap:.6rem;background:#fee2e2;border-left:4px solid #DC3545;border-radius:8px;padding:.75rem 1rem;margin-bottom:1.2rem;color:#991b1b;">
+            <i class="fas fa-exclamation-circle"></i><span>{{ $errors->first('email') }}</span>
+        </div>
+    @endif
     @if($errors->has('general'))
         <div style="display:flex;align-items:center;gap:.6rem;background:#fee2e2;border-left:4px solid #DC3545;border-radius:8px;padding:.75rem 1rem;margin-bottom:1.2rem;color:#991b1b;">
             <i class="fas fa-exclamation-circle"></i><span>{{ $errors->first('general') }}</span>
@@ -77,22 +95,33 @@
                     @csrf
                     <div class="form-group">
                         <label class="form-label">Correo destino</label>
-                        <input type="email" name="email" class="form-input" required>
+                        <input type="email" name="email" class="form-input" required
+                               value="{{ old('email') }}" placeholder="ejemplo@gmail.com">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Tipo de reporte</label>
                         <select name="type" class="form-input">
-                            <option value="matrix">Matriz A/F/J</option>
-                            <option value="monthly">Resumen mensual</option>
+                            <option value="matrix" @selected(old('type', 'matrix') === 'matrix')>Matriz A/F/J</option>
+                            <option value="monthly" @selected(old('type') === 'monthly')>Resumen mensual</option>
                         </select>
                     </div>
                     <input type="hidden" name="month" value="{{ $month }}">
                     <div class="form-group">
                         <label class="form-label">Asunto</label>
-                        <input type="text" name="subject" class="form-input" value="Reporte de asistencias">
+                        <input type="text" name="subject" class="form-input"
+                               value="{{ old('subject', 'Reporte de asistencias — ' . ($classroom->subject_name ?? '')) }}"
+                               maxlength="180">
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">Mensaje (opcional)</label>
+                        <textarea name="message" class="form-input" rows="4" maxlength="1000"
+                                  placeholder="Mensaje profesional para el destinatario...">{{ old('message') }}</textarea>
+                    </div>
+                    <p style="font-size:.8rem;color:#6b7280;margin:0 0 1rem;">
+                        El correo incluirá el diseño institucional GAMA Solutions y el archivo XLSX adjunto.
+                    </p>
                     <button class="btn btn-primary btn-md" type="submit">
-                        <i class="fas fa-paper-plane"></i> Enviar
+                        <i class="fas fa-paper-plane"></i> Enviar reporte por correo
                     </button>
                 </form>
             </div>

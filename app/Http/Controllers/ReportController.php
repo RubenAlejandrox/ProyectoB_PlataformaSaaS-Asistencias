@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\AttendanceReportMail;
 use App\Models\Classroom;
+use App\Services\MailDeliveryService;
 use App\Services\ReportGeneratorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -41,11 +42,15 @@ class ReportController extends Controller
                 ->values();
         }
 
-        return view('reportes.index', compact('classrooms', 'classroom', 'month', 'riskPreview'));
+        $mailConfigured = ! in_array(config('mail.default'), ['log', 'array'], true)
+            && ! str_contains((string) config('mail.from.address'), 'example.com');
+
+        return view('reportes.index', compact('classrooms', 'classroom', 'month', 'riskPreview', 'mailConfigured'));
     }
 
     public function __construct(
-        private ReportGeneratorService $reports
+        private ReportGeneratorService $reports,
+        private MailDeliveryService $mailDelivery,
     ) {}
 
     public function matrix(Classroom $classroom): BinaryFileResponse
@@ -83,29 +88,99 @@ class ReportController extends Controller
         ]);
 
         $type = $request->string('type')->toString();
-        $subject = $request->input('subject') ?: 'Reporte de asistencias';
-        $message = $request->input('message') ?: 'Reporte generado desde la plataforma.';
+        $month = $type === 'monthly' ? $request->string('month')->toString() : null;
+
+        $reportTypeLabel = $type === 'matrix'
+            ? 'Matriz de asistencias (A / F / J)'
+            : 'Resumen mensual';
+
+        $defaultSubject = $type === 'matrix'
+            ? "Reporte de asistencias — {$classroom->subject_name}"
+            : "Reporte mensual {$month} — {$classroom->subject_name}";
+
+        $subject = $request->input('subject') ?: $defaultSubject;
+
+        $defaultMessage = $type === 'matrix'
+            ? "Adjuntamos el reporte de asistencias del aula {$classroom->subject_name} ({$classroom->period}). "
+                . 'El archivo Excel incluye el detalle por sesión y alumno (asistencia, falta y justificante).'
+            : "Adjuntamos el resumen mensual de asistencias del aula {$classroom->subject_name} para el período {$month}. "
+                . 'Revise el archivo adjunto para identificar alumnos en riesgo según el umbral del aula.';
+
+        $message = $request->input('message') ?: $defaultMessage;
+
+        $user = $request->user();
+        $senderName = trim("{$user->first_name} {$user->last_name}");
+        $reportTitle = $type === 'matrix'
+            ? 'Matriz de asistencias'
+            : 'Resumen mensual de asistencias';
 
         if ($type === 'matrix') {
             $export = $this->reports->generateMatrix($classroom);
-            $filename = 'reporte_matriz_'.$classroom->subject_name.'.xlsx';
+            $filename = 'reporte_matriz_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $classroom->subject_name) . '.xlsx';
         } else {
-            $month = $request->string('month')->toString();
             $export = $this->reports->generateMonthly($classroom, $month);
-            $filename = 'reporte_mensual_'.$classroom->subject_name.'_'.$month.'.xlsx';
+            $filename = 'reporte_mensual_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $classroom->subject_name) . '_' . $month . '.xlsx';
         }
 
         $bytes = Excel::raw($export, \Maatwebsite\Excel\Excel::XLSX);
 
-        Mail::to($request->email)->send(
-            new AttendanceReportMail($subject, $message, $filename, $bytes)
-        );
+        try {
+            $this->mailDelivery->send(function () use (
+                $request,
+                $subject,
+                $message,
+                $filename,
+                $bytes,
+                $classroom,
+                $reportTypeLabel,
+                $month,
+                $senderName,
+                $user,
+                $reportTitle
+            ) {
+                Mail::to($request->email)->send(
+                    new AttendanceReportMail(
+                        subjectLine: $subject,
+                        messageBody: $message,
+                        attachmentName: $filename,
+                        attachmentData: $bytes,
+                        classroomName: $classroom->subject_name . ' — ' . $classroom->period,
+                        reportTypeLabel: $reportTypeLabel,
+                        periodLabel: $month ? $this->formatMonthLabel($month) : null,
+                        senderName: $senderName,
+                        senderEmail: $user->email,
+                        reportTitle: $reportTitle,
+                    )
+                );
+            });
+        } catch (\RuntimeException $e) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $e->getMessage()], 422);
+            }
 
-        if ($request->expectsJson()) {
-            return response()->json(['message' => 'Reporte enviado correctamente.']);
+            return back()
+                ->withInput()
+                ->withErrors(['email' => $e->getMessage()]);
         }
 
-        return back()->with('success', 'Reporte enviado correctamente.');
+        $successMsg = "Reporte enviado a {$request->email}. Revise la bandeja de entrada y la carpeta de spam si no aparece en unos minutos.";
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => $successMsg]);
+        }
+
+        return back()->with('success', $successMsg);
+    }
+
+    private function formatMonthLabel(string $month): string
+    {
+        try {
+            return \Carbon\Carbon::createFromFormat('Y-m', $month)
+                ->locale('es')
+                ->isoFormat('MMMM YYYY');
+        } catch (\Exception) {
+            return $month;
+        }
     }
 
     private function authorizeClassroom(Classroom $classroom): void
