@@ -157,6 +157,7 @@
                 <span class="kpi-label">Ciclo cerrado</span>
             </div>
         </div>
+        @unless($isStudent)
         <div class="kpi-card">
             <div class="kpi-icon"><i class="fas fa-users"></i></div>
             <div class="kpi-content">
@@ -164,6 +165,7 @@
                 <span class="kpi-label">Alumnos totales</span>
             </div>
         </div>
+        @endunless
     </div>
 
     @unless($isStudent)

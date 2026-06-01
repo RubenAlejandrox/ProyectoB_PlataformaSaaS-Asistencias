@@ -218,11 +218,13 @@
                                         )">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <button class="action-btn {{ $tabStatus === 'expiring' ? 'warn' : '' }}"
-                                            title="Renovar con PayPal"
-                                            onclick="abrirRenovar('{{ $sub->institution_id }}', '{{ $sub->plan_id }}', '{{ addslashes($sub->institution->name) }}', '{{ $sub->plan->name }}')">
-                                        <i class="fas fa-redo"></i>
-                                    </button>
+                                    @if($tabStatus !== 'expired')
+                                        <button class="action-btn {{ $sub->plan->isFree() ? 'warn' : ($tabStatus === 'expiring' ? 'warn' : '') }}"
+                                                title="{{ $sub->plan->isFree() ? 'Actualizar a Pro' : 'Renovar o actualizar plan' }}"
+                                                onclick="abrirActualizar('{{ $sub->institution_id }}', '{{ $sub->plan_id }}', '{{ addslashes($sub->institution->name) }}', '{{ $sub->plan->name }}', {{ $sub->plan->isFree() ? 'true' : 'false' }})">
+                                            <i class="fas {{ $sub->plan->isFree() ? 'fa-arrow-up' : 'fa-redo' }}"></i>
+                                        </button>
+                                    @endif
                                 </td>
                             </tr>
                         @empty
@@ -292,15 +294,25 @@
         </div>
         <form method="POST" action="{{ route('membresias.upgrade') }}">
             @csrf
+            <input type="hidden" name="intent" value="assign">
             <div class="modal-body">
+                <p style="font-size:.85rem;color:var(--text-secondary);margin-bottom:1rem;">
+                    Solo instituciones <strong>sin membresía activa</strong>. Para pasar de Basic a Pro, usa «Actualizar plan» en la tabla.
+                </p>
                 <div class="form-group">
                     <label class="form-label">Institución <span class="required">*</span></label>
-                    <select name="institution_id" class="form-input" required>
-                        <option value="">Selecciona una institución...</option>
-                        @foreach($institutions as $inst)
-                            <option value="{{ $inst->id }}">{{ $inst->name }}</option>
-                        @endforeach
-                    </select>
+                    @if($institutionsForAssign->isEmpty())
+                        <p class="form-hint" style="color:var(--text-secondary);">
+                            No hay instituciones disponibles: todas tienen una suscripción activa.
+                        </p>
+                    @else
+                        <select name="institution_id" class="form-input" required>
+                            <option value="">Selecciona una institución...</option>
+                            @foreach($institutionsForAssign as $inst)
+                                <option value="{{ $inst->id }}">{{ $inst->name }}</option>
+                            @endforeach
+                        </select>
+                    @endif
                 </div>
                 <div class="form-group">
                     <label class="form-label">Plan <span class="required">*</span></label>
@@ -317,7 +329,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline btn-md" onclick="cerrarModal('modalAsignar')">Cancelar</button>
-                <button type="submit" class="btn btn-primary btn-md">
+                <button type="submit" class="btn btn-primary btn-md" @disabled($institutionsForAssign->isEmpty())>
                     <i class="fas fa-save"></i>
                     Asignar membresía
                 </button>
@@ -326,41 +338,45 @@
     </div>
 </div>
 
-{{-- MODAL: RENOVAR --}}
+{{-- MODAL: ACTUALIZAR / RENOVAR --}}
 <div class="modal-overlay" id="modalRenovar">
     <div class="modal modal-sm">
         <div class="modal-header">
             <div>
-                <h3 class="modal-title">Renovar Membresía</h3>
+                <h3 class="modal-title" id="renovarTitulo">Actualizar plan</h3>
                 <p class="modal-subtitle" id="renovarSubtitulo">—</p>
             </div>
             <button class="modal-close" onclick="cerrarModal('modalRenovar')"><i class="fas fa-times"></i></button>
         </div>
         <form method="POST" action="{{ route('membresias.upgrade') }}">
             @csrf
+            <input type="hidden" name="intent" value="change">
             <input type="hidden" name="institution_id" id="renovarInstId">
             <div class="modal-body">
+                <p id="renovarAyuda" style="font-size:.85rem;color:var(--text-secondary);margin-bottom:1rem;"></p>
                 <div class="form-group">
                     <label class="form-label">Plan</label>
                     <select name="plan_id" id="renovarPlanId" class="form-input" required>
                         @foreach($plans as $plan)
-                            <option value="{{ $plan->id }}">
+                            <option value="{{ $plan->id }}"
+                                    data-free="{{ $plan->isFree() ? '1' : '0' }}"
+                                    data-price="{{ $plan->price }}">
                                 {{ $plan->name }}
                                 @if(!$plan->isFree()) — ${{ number_format($plan->price, 0) }}/mes @endif
                             </option>
                         @endforeach
                     </select>
                 </div>
-                <p style="font-size:.85rem;color:var(--text-secondary);margin-top:.5rem;">
+                <p id="renovarPaypalNota" style="font-size:.85rem;color:var(--text-secondary);margin-top:.5rem;">
                     <i class="fab fa-paypal"></i>
-                    Serás redirigido a PayPal para completar el pago.
+                    Los planes de pago redirigen a PayPal.
                 </p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline btn-md" onclick="cerrarModal('modalRenovar')">Cancelar</button>
-                <button type="submit" class="btn btn-primary btn-md">
-                    <i class="fab fa-paypal"></i>
-                    Pagar con PayPal
+                <button type="submit" class="btn btn-primary btn-md" id="renovarSubmitBtn">
+                    <i class="fas fa-arrow-up"></i>
+                    Confirmar
                 </button>
             </div>
         </form>
@@ -461,15 +477,46 @@
         abrirModal('modalDetalle');
     }
 
-    // ── Renovar ───────────────────────────────────────────────────────────────
-    function abrirRenovar(instId, planId, nombre, planNombre) {
-        document.getElementById('renovarSubtitulo').textContent = `${nombre} — Plan ${planNombre}`;
+    // ── Actualizar plan / renovar ─────────────────────────────────────────────
+    function abrirActualizar(instId, planId, nombre, planNombre, esBasic) {
+        document.getElementById('renovarTitulo').textContent    = esBasic ? 'Actualizar a Pro' : 'Renovar membresía';
+        document.getElementById('renovarSubtitulo').textContent = `${nombre} — Plan actual: ${planNombre}`;
         document.getElementById('renovarInstId').value          = instId;
-        // Pre-seleccionar el plan actual
+        document.getElementById('renovarAyuda').textContent     = esBasic
+            ? 'Puedes actualizar de Basic a Pro en cualquier momento. Solo puede haber una suscripción activa por institución.'
+            : 'Renueva el mismo plan o contacta soporte para cambios. No se permiten dos suscripciones Pro activas.';
+
         const select = document.getElementById('renovarPlanId');
         for (let opt of select.options) {
-            if (opt.value === planId) { opt.selected = true; break; }
+            const isFree = opt.dataset.free === '1';
+            if (esBasic) {
+                opt.hidden = isFree;
+                opt.disabled = isFree;
+            } else {
+                opt.hidden = false;
+                opt.disabled = false;
+            }
+            if (opt.value === planId && !esBasic) { opt.selected = true; }
+            if (esBasic && opt.dataset.free !== '1') { opt.selected = true; }
         }
+
+        const selected = select.options[select.selectedIndex];
+        const submitBtn = document.getElementById('renovarSubmitBtn');
+        const isPaid = selected && selected.dataset.free !== '1';
+        submitBtn.innerHTML = isPaid
+            ? '<i class="fab fa-paypal"></i> Pagar con PayPal'
+            : '<i class="fas fa-check"></i> Confirmar';
+        document.getElementById('renovarPaypalNota').style.display = isPaid ? '' : 'none';
+
+        select.onchange = () => {
+            const opt = select.options[select.selectedIndex];
+            const paid = opt.dataset.free !== '1';
+            submitBtn.innerHTML = paid
+                ? '<i class="fab fa-paypal"></i> Pagar con PayPal'
+                : '<i class="fas fa-check"></i> Confirmar';
+            document.getElementById('renovarPaypalNota').style.display = paid ? '' : 'none';
+        };
+
         abrirModal('modalRenovar');
     }
 </script>

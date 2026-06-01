@@ -22,11 +22,19 @@ class Institution extends Model
     public function payments()     { return $this->hasMany(Payment::class); }
     public function academicCycles(){ return $this->hasMany(AcademicCycle::class); }
 
-    public function activePlan(): ?Plan
+    public function activeSubscription(): ?Subscription
     {
         return $this->subscriptions()
             ->where('status', 'active')
-            ->latest()->first()?->plan;
+            ->where('end_date', '>=', now()->toDateString())
+            ->with('plan')
+            ->orderByDesc('end_date')
+            ->first();
+    }
+
+    public function activePlan(): ?Plan
+    {
+        return $this->activeSubscription()?->plan;
     }
     public function institutionCodes()
     {
