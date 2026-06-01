@@ -121,11 +121,12 @@
                         <div x-show="!claveActiva">
                             <p class="clave-desc">Genera una clave alfanumérica de 8 caracteres para que tus alumnos registren su asistencia.</p>
                             <div class="clave-config">
-                                <label class="form-label">Duración de la clave</label>
+                                <label class="form-label">Tiempo para registrar asistencia</label>
                                 <div class="duracion-options">
-                                    @foreach($keyDurations as $min)
-                                        <button type="button" class="duracion-btn" :class="{ 'active': duracion === {{ $min }} }"
-                                                @click="duracion = {{ $min }}">{{ $min }} min</button>
+                                    @foreach($keyDurations as $opt)
+                                        <button type="button" class="duracion-btn"
+                                                :class="{ 'active': duracion === {{ $opt['seconds'] }} }"
+                                                @click="duracion = {{ $opt['seconds'] }}">{{ $opt['label'] }}</button>
                                     @endforeach
                                 </div>
                             </div>
@@ -322,6 +323,18 @@
     </div>
     @endif
 
+    {{-- Notificaciones en pantalla (solo front, sin BD) --}}
+    <div class="toast-stack" aria-live="polite" aria-atomic="true">
+        <template x-for="(toast, index) in toasts" :key="toast.id">
+            <div class="toast-item" :class="'toast-item--' + toast.type" x-show="toast.visible"
+                 x-transition.opacity.duration.200ms>
+                <i class="fas" :class="toast.icon"></i>
+                <span x-text="toast.message"></span>
+                <button type="button" class="toast-close" @click="quitarToast(index)"><i class="fas fa-times"></i></button>
+            </div>
+        </template>
+    </div>
+
     {{-- Modal detener clave --}}
     <div class="modal-overlay" :class="{ 'active': confirmarDetener }" @keydown.escape.window="confirmarDetener = false">
         <div class="modal modal-md" @click.outside="confirmarDetener = false">
@@ -337,7 +350,8 @@
             <div class="modal-body">
                 <p>¿Desea detener la clave ahora? Los alumnos <strong>no podrán registrar</strong> asistencia con el código actual.</p>
                 <p style="margin-top:.75rem;font-size:.9rem;color:#6b7280;">
-                    Puede generar una nueva clave después o cerrar la sesión para marcar faltas automáticas.
+                    Los alumnos sin registro quedarán marcados con <strong>falta</strong> y podrán enviar justificante (ventana de 72 h).
+                    Puede generar una nueva clave después si lo necesita.
                 </p>
             </div>
             <div class="modal-footer" style="flex-wrap:wrap;gap:.5rem;">
@@ -387,11 +401,13 @@
                 <button type="button" class="modal-close" @click="modalExpirado = false"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
-                <p>El tiempo de la clave ha terminado. Puedes generar una nueva clave sin recargar la página.</p>
+                <p>El tiempo de registro terminó. Se marcaron faltas a quienes no registraron asistencia (pueden justificar en 72 h).</p>
+                <p style="margin-top:.5rem;font-size:.9rem;color:#6b7280;">Puede generar una nueva clave o cerrar la sesión del día.</p>
             </div>
             <div class="modal-footer">
+                <button type="button" class="btn btn-outline btn-md" @click="modalExpirado = false">Entendido</button>
                 <button type="button" class="btn btn-primary btn-md" @click="modalExpirado = false; generarClave()">
-                    <i class="fas fa-key"></i> Regenerar clave
+                    <i class="fas fa-key"></i> Nueva clave
                 </button>
             </div>
         </div>
@@ -407,7 +423,7 @@
 <script>
 function docenteAsistencias() {
     return {
-        duracion: 15,
+        duracion: 60,
         generando: false,
         claveActiva: @json((bool) ($activeKey && $activeKey->isValid())),
         codigoClave: @json($activeKey?->access_key ?? ''),
@@ -426,20 +442,40 @@ function docenteAsistencias() {
         modalExpirado: false,
         deteniendo: false,
         cerrando: false,
+        finalizandoExpiracion: false,
         busqueda: '',
         filtroEstado: '',
         timer: null,
+        pollTimer: null,
+        toasts: [],
         csrf: '{{ csrf_token() }}',
-        urlDetenerClave: @json($activeSession ? route('asistencias.docente.clave.detener', $activeSession) : null),
-        urlCerrarSesion: @json($todaySession ? route('asistencias.docente.cerrar', $todaySession) : null),
         urlEstatusBase: @json($todaySession ? url('/asistencias/docente/sesiones/'.$todaySession->id.'/alumnos') : null),
         cambiandoEstatus: null,
+
+        urlDetenerClave() {
+            return this.sessionId
+                ? `/asistencias/docente/sesiones/${this.sessionId}/clave/detener`
+                : null;
+        },
+        urlCerrarSesion() {
+            return this.sessionId
+                ? `/asistencias/docente/sesiones/${this.sessionId}/cerrar`
+                : null;
+        },
+        urlRoster() {
+            return this.sessionId
+                ? `/asistencias/docente/sesiones/${this.sessionId}/roster`
+                : null;
+        },
 
         init() {
             if (this.claveActiva && this.expiresAt) {
                 this.iniciarCountdown(new Date(this.expiresAt));
             }
-            @if($classroom && $activeSession && config('broadcasting.connections.reverb.key'))
+            if (this.sessionId && this.sesionActiva) {
+                this.iniciarPollingRoster();
+            }
+            @if($classroom && $todaySession && config('broadcasting.connections.reverb.key'))
             this.initEcho();
             @endif
         },
@@ -466,26 +502,83 @@ function docenteAsistencias() {
         },
 
         onAttendance(e) {
-            this.contadorAsistencias++;
-            this.actualizarFilaAlumno(e.student_id, 'present', e.registered_at);
+            const status = e.status || 'present';
+            if (status === 'present') {
+                this.contadorAsistencias++;
+            }
+            const hora = e.registered_at
+                ? new Date(e.registered_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+                : null;
+            this.actualizarFilaAlumno(e.student_id, status, hora);
+            if (status === 'present') {
+                this.notify('success', `${e.student_name || 'Alumno'} registró asistencia.`, 'fa-user-check');
+            } else if (status === 'absent') {
+                this.notify('warning', `Falta registrada: ${e.student_name || 'Alumno'}.`, 'fa-user-times');
+            }
+        },
+
+        notify(type, message, icon = 'fa-info-circle') {
+            const id = Date.now() + Math.random();
+            this.toasts.push({ id, type, message, icon, visible: true });
+            setTimeout(() => this.quitarToastPorId(id), 6000);
+        },
+        quitarToast(index) {
+            if (this.toasts[index]) this.toasts[index].visible = false;
+            setTimeout(() => this.toasts.splice(index, 1), 200);
+        },
+        quitarToastPorId(id) {
+            const i = this.toasts.findIndex(t => t.id === id);
+            if (i >= 0) this.quitarToast(i);
+        },
+
+        iniciarPollingRoster() {
+            clearInterval(this.pollTimer);
+            this.pollTimer = setInterval(() => this.sincronizarRoster(), 2500);
+        },
+
+        async sincronizarRoster() {
+            if (!this.urlRoster()) return;
+            try {
+                const res = await fetch(this.urlRoster(), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                });
+                if (!res.ok) return;
+                const json = await res.json();
+                this.aplicarRosterPayload(json.data || {});
+            } catch (e) { /* silencioso */ }
+        },
+
+        aplicarRosterPayload(payload) {
+            if (typeof payload.present_count === 'number') {
+                this.contadorAsistencias = payload.present_count;
+            }
+            (payload.students || []).forEach(s => {
+                const status = s.today_status || 'pending';
+                this.actualizarFilaAlumno(s.student_id, status, s.today_time);
+            });
+            (payload.updates || []).forEach(u => {
+                this.actualizarFilaAlumno(u.student_id, u.status, u.registered_at);
+            });
         },
 
         actualizarFilaAlumno(studentId, status, registeredAt) {
             const row = document.querySelector(`tr[data-student-id="${studentId}"]`);
             if (!row) return;
-            row.dataset.estado = status;
+            const st = status || 'pending';
+            row.dataset.estado = st;
             const estadoCell = row.querySelector('.estado-cell');
             if (!estadoCell) return;
-            if (status === 'present') {
+            if (st === 'present') {
                 estadoCell.innerHTML = '<span class="status status-active">Asistencia</span>';
-            } else if (status === 'absent') {
+            } else if (st === 'absent') {
                 estadoCell.innerHTML = '<span class="status status-absent">Falta</span>';
             } else {
                 estadoCell.innerHTML = '<span class="status status-pending">Pendiente</span>';
             }
             const horaCell = row.querySelector('.hora-cell');
             if (horaCell) {
-                if (status === 'pending') {
+                if (st === 'pending') {
                     horaCell.textContent = '—';
                 } else if (registeredAt) {
                     const d = typeof registeredAt === 'string' && registeredAt.includes(':') && registeredAt.length <= 5
@@ -522,8 +615,9 @@ function docenteAsistencias() {
                 if (typeof payload.present_count === 'number') {
                     this.contadorAsistencias = payload.present_count;
                 }
+                this.notify('info', data.message || 'Estado actualizado.', 'fa-pen');
             } catch (err) {
-                alert(err.message);
+                this.notify('error', err.message, 'fa-exclamation-circle');
             } finally {
                 this.cambiandoEstatus = null;
             }
@@ -540,16 +634,19 @@ function docenteAsistencias() {
                         'Accept': 'application/json',
                         'X-CSRF-TOKEN': this.csrf,
                     },
-                    body: JSON.stringify({ duration_minutes: this.duracion }),
+                    body: JSON.stringify({ duration_seconds: this.duracion }),
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.message || 'Error al generar clave');
                 this.codigoClave = data.data.access_key;
                 this.claveActiva = true;
                 this.sesionActiva = true;
+                this.totalSegundos = this.duracion;
                 this.iniciarCountdown(new Date(data.data.expires_at));
+                this.iniciarPollingRoster();
+                this.notify('success', 'Clave generada. Los alumnos pueden registrar asistencia.', 'fa-key');
             } catch (err) {
-                alert(err.message);
+                this.notify('error', err.message, 'fa-exclamation-circle');
             } finally {
                 this.generando = false;
             }
@@ -570,8 +667,7 @@ function docenteAsistencias() {
                 if (diff <= 0) {
                     clearInterval(this.timer);
                     this.claveActiva = false;
-                    this.modalExpirado = true;
-                    this.sincronizarClaveExpirada();
+                    this.finalizarVentanaRegistro(true);
                 }
             };
             tick();
@@ -618,39 +714,68 @@ function docenteAsistencias() {
             this.ringOffset = this.circunferencia;
         },
 
+        async finalizarVentanaRegistro(mostrarModalExpirado = false) {
+            if (this.finalizandoExpiracion) return;
+            const url = this.urlDetenerClave();
+            if (!url) {
+                if (mostrarModalExpirado) this.modalExpirado = true;
+                return;
+            }
+            this.finalizandoExpiracion = true;
+            try {
+                const data = await this.postJson(url);
+                this.aplicarClaveDetenida();
+                if (data.data) this.aplicarRosterPayload(data.data);
+                const n = (data.data?.updates || []).length;
+                if (n > 0) {
+                    this.notify('warning', data.message || `Se registraron ${n} falta(s).`, 'fa-user-times');
+                } else if (!mostrarModalExpirado) {
+                    this.notify('info', data.message || 'Clave detenida.', 'fa-stop-circle');
+                }
+                if (mostrarModalExpirado) this.modalExpirado = true;
+            } catch (e) {
+                this.aplicarClaveDetenida();
+                if (mostrarModalExpirado) this.modalExpirado = true;
+            } finally {
+                this.finalizandoExpiracion = false;
+            }
+        },
+
         async detenerClave() {
-            if (!this.urlDetenerClave || this.deteniendo) return;
+            if (!this.urlDetenerClave() || this.deteniendo) return;
             this.deteniendo = true;
             try {
-                await this.postJson(this.urlDetenerClave);
+                const data = await this.postJson(this.urlDetenerClave());
                 this.aplicarClaveDetenida();
+                if (data.data) this.aplicarRosterPayload(data.data);
                 this.confirmarDetener = false;
+                const n = (data.data?.updates || []).filter(u => u.status === 'absent').length;
+                this.notify(
+                    n > 0 ? 'warning' : 'info',
+                    data.message || (n > 0 ? `${n} falta(s) registrada(s).` : 'Clave detenida.'),
+                    n > 0 ? 'fa-user-times' : 'fa-stop-circle'
+                );
             } catch (err) {
-                alert(err.message);
+                this.notify('error', err.message, 'fa-exclamation-circle');
             } finally {
                 this.deteniendo = false;
             }
         },
 
-        async sincronizarClaveExpirada() {
-            if (!this.urlDetenerClave) return;
-            try {
-                await this.postJson(this.urlDetenerClave);
-            } catch (e) {
-                /* la clave ya pudo expirar en servidor */
-            }
-        },
-
         async cerrarSesion() {
-            if (!this.urlCerrarSesion || this.cerrando) return;
+            if (!this.urlCerrarSesion() || this.cerrando) return;
             this.cerrando = true;
             try {
-                await this.postJson(this.urlCerrarSesion);
+                const data = await this.postJson(this.urlCerrarSesion());
+                if (data.data) this.aplicarRosterPayload(data.data);
+                this.sesionActiva = false;
+                this.aplicarClaveDetenida();
+                clearInterval(this.pollTimer);
                 this.confirmarCierre = false;
                 this.confirmarDetener = false;
-                window.location.reload();
+                this.notify('success', data.message || 'Sesión cerrada.', 'fa-lock');
             } catch (err) {
-                alert(err.message);
+                this.notify('error', err.message, 'fa-exclamation-circle');
             } finally {
                 this.cerrando = false;
             }

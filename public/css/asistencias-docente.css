@@ -907,3 +907,56 @@ Paleta Institucional Azul Corporativo
     gap: 8px !important;
     flex-wrap: nowrap;
 }
+
+/* ========================================
+   Toasts (solo front)
+======================================== */
+.toast-stack {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: min(420px, calc(100vw - 2rem));
+    pointer-events: none;
+}
+
+.toast-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-md);
+    background: #fff;
+    border-left: 4px solid var(--deep-blue);
+    box-shadow: 0 8px 24px rgba(19, 68, 116, 0.15);
+    font-size: 0.9rem;
+    color: var(--midnight);
+    font-family: var(--font-main);
+    pointer-events: auto;
+}
+
+.toast-item--success { border-left-color: #28A745; }
+.toast-item--warning { border-left-color: var(--corp-orange); }
+.toast-item--error   { border-left-color: var(--error-red); }
+.toast-item--info    { border-left-color: var(--deep-blue); }
+
+.toast-item i:first-child {
+    margin-top: 2px;
+    color: var(--deep-blue);
+}
+
+.toast-item--success i:first-child { color: #28A745; }
+.toast-item--warning i:first-child { color: var(--corp-orange); }
+.toast-item--error i:first-child   { color: var(--error-red); }
+
+.toast-close {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--soft-steel);
+    cursor: pointer;
+    padding: 0 0 0 0.5rem;
+}

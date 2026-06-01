@@ -223,22 +223,22 @@ class AttendanceTest extends TestCase
     }
 
     #[Test]
-    public function session_key_respects_duration_minutes(): void
+    public function session_key_respects_duration_seconds(): void
     {
         $response = $this->actingAs($this->teacher)
             ->postJson('/api/sessions/'.$this->session->id.'/keys', [
-                'duration_minutes' => 30,
+                'duration_seconds' => 180,
             ]);
 
         $response->assertStatus(201)
-            ->assertJsonPath('data.duration_minutes', 30);
+            ->assertJsonPath('data.duration_seconds', 180);
 
         $key = SessionKey::where('session_id', $this->session->id)
             ->where('is_active', true)
             ->latest()
             ->first();
 
-        $this->assertTrue($key->expires_at->between(now()->addMinutes(29), now()->addMinutes(31)));
+        $this->assertTrue($key->expires_at->between(now()->addSeconds(175), now()->addSeconds(185)));
     }
 
     #[Test]
@@ -264,11 +264,17 @@ class AttendanceTest extends TestCase
         $this->actingAs($this->teacher)
             ->postJson(route('asistencias.docente.clave.detener', $this->session))
             ->assertOk()
-            ->assertJsonFragment(['message' => 'Clave de asistencia detenida. Los alumnos ya no pueden registrar con esta clave.']);
+            ->assertJsonPath('data.present_count', 0);
 
         $this->validKey->refresh();
         $this->assertFalse($this->validKey->isValid());
         $this->assertTrue($this->session->fresh()->is_active);
+
+        $this->assertDatabaseHas('attendances', [
+            'session_id' => $this->session->id,
+            'student_id' => $this->student->id,
+            'status'     => 'absent',
+        ]);
 
         $this->actingAs($this->student)
             ->from(route('asistencias.alumno'))

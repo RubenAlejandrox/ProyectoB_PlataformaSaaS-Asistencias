@@ -131,6 +131,8 @@ Route::middleware(['auth'])->group(function () {
             ->name('asistencias.docente.clave');
         Route::post('/asistencias/docente/sesiones/{session}/clave/detener', [AttendanceWebController::class, 'stopKey'])
             ->name('asistencias.docente.clave.detener');
+        Route::get('/asistencias/docente/sesiones/{session}/roster', [AttendanceWebController::class, 'sessionRoster'])
+            ->name('asistencias.docente.roster');
         Route::post('/asistencias/docente/sesiones/{session}/cerrar', [AttendanceWebController::class, 'closeSession'])
             ->name('asistencias.docente.cerrar');
         Route::patch('/asistencias/docente/sesiones/{session}/alumnos/{student}/estatus', [AttendanceWebController::class, 'updateStudentAttendance'])

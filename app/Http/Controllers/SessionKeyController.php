@@ -10,13 +10,13 @@ use Illuminate\Support\Str;
 
 class SessionKeyController extends Controller
 {
-    private const ALLOWED_DURATIONS = [5, 15, 30, 60];
+    private const ALLOWED_DURATION_SECONDS = [45, 60, 180];
 
     // ── store — generar clave de asistencia para una sesión ───────────────────
     public function store(Request $request, Session $session): JsonResponse
     {
         $request->validate([
-            'duration_minutes' => 'sometimes|integer|in:'.implode(',', self::ALLOWED_DURATIONS),
+            'duration_seconds' => 'sometimes|integer|in:'.implode(',', self::ALLOWED_DURATION_SECONDS),
         ]);
         $session->loadMissing('classroom');
 
@@ -35,9 +35,9 @@ class SessionKeyController extends Controller
             ->where('is_active', true)
             ->update(['is_active' => false]);
 
-        $durationMinutes = (int) $request->input('duration_minutes', 15);
-        if (!in_array($durationMinutes, self::ALLOWED_DURATIONS, true)) {
-            $durationMinutes = 15;
+        $durationSeconds = (int) $request->input('duration_seconds', 60);
+        if (! in_array($durationSeconds, self::ALLOWED_DURATION_SECONDS, true)) {
+            $durationSeconds = 60;
         }
 
         do {
@@ -47,7 +47,7 @@ class SessionKeyController extends Controller
         $sessionKey = SessionKey::create([
             'session_id' => $session->id,
             'access_key' => $accessKey,
-            'expires_at' => now()->addMinutes($durationMinutes),
+            'expires_at' => now()->addSeconds($durationSeconds),
             'is_active'  => true,
         ]);
 
@@ -57,7 +57,7 @@ class SessionKeyController extends Controller
                 'id'               => $sessionKey->id,
                 'access_key'       => $sessionKey->access_key,
                 'expires_at'       => $sessionKey->expires_at->toIso8601String(),
-                'duration_minutes' => $durationMinutes,
+                'duration_seconds' => $durationSeconds,
             ],
         ], 201);
     }

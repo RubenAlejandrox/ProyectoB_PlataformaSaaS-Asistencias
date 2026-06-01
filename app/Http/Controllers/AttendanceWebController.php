@@ -20,7 +20,8 @@ use Illuminate\View\View;
 
 class AttendanceWebController extends Controller
 {
-    private const KEY_DURATIONS = [15, 30, 60];
+    /** Duraciones de la ventana de registro (segundos). */
+    private const KEY_DURATION_SECONDS = [45, 60, 180];
 
     public function __construct(
         private AttendanceProgressService $progressService
@@ -140,8 +141,20 @@ class AttendanceWebController extends Controller
             'students'        => $students,
             'stats'           => $stats,
             'sessionsHistory' => $sessionsHistory,
-            'keyDurations'    => self::KEY_DURATIONS,
+            'keyDurations'    => self::keyDurationOptions(),
         ]);
+    }
+
+    /**
+     * @return array<int, array{seconds: int, label: string}>
+     */
+    public static function keyDurationOptions(): array
+    {
+        return [
+            ['seconds' => 45, 'label' => '45 seg'],
+            ['seconds' => 60, 'label' => '1 min'],
+            ['seconds' => 180, 'label' => '3 min'],
+        ];
     }
 
     public function studentIndex(Request $request): View
@@ -245,10 +258,10 @@ class AttendanceWebController extends Controller
         }
 
         $request->validate([
-            'duration_minutes' => 'required|integer|in:'.implode(',', self::KEY_DURATIONS),
+            'duration_seconds' => 'required|integer|in:'.implode(',', self::KEY_DURATION_SECONDS),
         ]);
 
-        $duration = (int) $request->duration_minutes;
+        $duration = (int) $request->duration_seconds;
 
         $session->sessionKeys()
             ->where('is_active', true)
@@ -261,14 +274,14 @@ class AttendanceWebController extends Controller
         $sessionKey = SessionKey::create([
             'session_id' => $session->id,
             'access_key' => $accessKey,
-            'expires_at' => now()->addMinutes($duration),
+            'expires_at' => now()->addSeconds($duration),
             'is_active'  => true,
         ]);
 
         $payload = [
-            'access_key'       => $sessionKey->access_key,
-            'expires_at'       => $sessionKey->expires_at->toIso8601String(),
-            'duration_minutes' => $duration,
+            'access_key'        => $sessionKey->access_key,
+            'expires_at'        => $sessionKey->expires_at->toIso8601String(),
+            'duration_seconds'  => $duration,
         ];
 
         if ($request->expectsJson()) {
@@ -299,14 +312,16 @@ class AttendanceWebController extends Controller
                 : back()->withErrors(['general' => $message]);
         }
 
-        $deactivated = $session->sessionKeys()
+        $hadActiveKey = $session->sessionKeys()->where('is_active', true)->exists();
+
+        $session->sessionKeys()
             ->where('is_active', true)
             ->update([
                 'is_active'  => false,
                 'expires_at' => now(),
             ]);
 
-        if ($deactivated === 0) {
+        if (! $hadActiveKey) {
             $message = 'No hay una clave activa para detener.';
 
             return $request->expectsJson()
@@ -314,10 +329,17 @@ class AttendanceWebController extends Controller
                 : back()->withErrors(['general' => $message]);
         }
 
-        $message = 'Clave de asistencia detenida. Los alumnos ya no pueden registrar con esta clave.';
+        $marked = $this->markAbsentForUnregisteredStudents($session);
+
+        $message = $marked['count'] > 0
+            ? "Clave detenida. Se registraron {$marked['count']} falta(s); los alumnos pueden enviar justificante (72 h)."
+            : 'Clave de asistencia detenida. Los alumnos ya no pueden registrar con esta clave.';
 
         if ($request->expectsJson()) {
-            return response()->json(['message' => $message]);
+            return response()->json([
+                'message' => $message,
+                'data'    => $this->sessionRosterPayload($session, $marked['updates']),
+            ]);
         }
 
         return redirect()
@@ -348,22 +370,7 @@ class AttendanceWebController extends Controller
                     'expires_at' => now(),
                 ]);
 
-            $enrolledIds = Enrollment::withoutGlobalScopes()
-                ->where('classroom_id', $session->classroom_id)
-                ->where('is_active', true)
-                ->pluck('student_id');
-
-            $registeredIds = Attendance::withoutGlobalScopes()
-                ->where('session_id', $session->id)
-                ->pluck('student_id');
-
-            foreach ($enrolledIds->diff($registeredIds) as $studentId) {
-                Attendance::create([
-                    'session_id' => $session->id,
-                    'student_id' => $studentId,
-                    'status'     => 'absent',
-                ]);
-            }
+            $this->markAbsentForUnregisteredStudents($session);
 
             $session->update([
                 'is_active' => false,
@@ -371,13 +378,31 @@ class AttendanceWebController extends Controller
             ]);
         });
 
+        $session->refresh();
+
         if ($request->expectsJson()) {
-            return response()->json(['message' => 'Sesión cerrada.']);
+            return response()->json([
+                'message' => 'Sesión cerrada. Faltas registradas para alumnos sin asistencia.',
+                'data'    => $this->sessionRosterPayload($session),
+            ]);
         }
 
         return redirect()
             ->route('asistencias.docente', ['classroom' => $session->classroom_id])
             ->with('success', 'Sesión cerrada. Faltas registradas para alumnos sin asistencia.');
+    }
+
+    public function sessionRoster(Session $session): JsonResponse
+    {
+        $session->loadMissing('classroom');
+
+        if ($session->classroom->teacher_id !== auth()->user()->id) {
+            abort(403);
+        }
+
+        return response()->json([
+            'data' => $this->sessionRosterPayload($session),
+        ]);
     }
 
     public function updateStudentAttendance(Request $request, Session $session, User $student): JsonResponse
@@ -579,5 +604,87 @@ class AttendanceWebController extends Controller
         return redirect()
             ->route('asistencias.alumno', ['classroom' => $classroomId])
             ->with('success', '¡Asistencia registrada correctamente!');
+    }
+
+    /**
+     * Marca falta a inscritos sin registro en la sesión (habilita justificante 72 h).
+     *
+     * @return array{count: int, updates: list<array{student_id: string, status: string, registered_at: ?string}>}
+     */
+    private function markAbsentForUnregisteredStudents(Session $session): array
+    {
+        $session->loadMissing('classroom');
+        $classroomId = $session->classroom_id;
+
+        $enrolledIds = Enrollment::withoutGlobalScopes()
+            ->where('classroom_id', $classroomId)
+            ->where('is_active', true)
+            ->pluck('student_id');
+
+        $registeredIds = Attendance::withoutGlobalScopes()
+            ->where('session_id', $session->id)
+            ->pluck('student_id');
+
+        $updates = [];
+
+        foreach ($enrolledIds->diff($registeredIds) as $studentId) {
+            $attendance = Attendance::create([
+                'session_id' => $session->id,
+                'student_id' => $studentId,
+                'status'     => 'absent',
+            ]);
+
+            event(new AttendanceRegistered($attendance, $classroomId));
+
+            $updates[] = [
+                'student_id'    => $studentId,
+                'status'        => 'absent',
+                'registered_at' => $attendance->created_at?->format('H:i'),
+            ];
+        }
+
+        return ['count' => count($updates), 'updates' => $updates];
+    }
+
+    /**
+     * @param  list<array{student_id: string, status: string, registered_at: ?string}>|null  $extraUpdates
+     * @return array{present_count: int, enrolled_count: int, students: list<array<string, mixed>>, updates: list<array<string, string|null>>}
+     */
+    private function sessionRosterPayload(Session $session, ?array $extraUpdates = null): array
+    {
+        $session->loadMissing('classroom');
+        $classroomId = $session->classroom_id;
+
+        $enrollments = Enrollment::withoutGlobalScopes()
+            ->where('classroom_id', $classroomId)
+            ->where('is_active', true)
+            ->with('student:id,first_name,last_name')
+            ->get();
+
+        $attendances = Attendance::withoutGlobalScopes()
+            ->where('session_id', $session->id)
+            ->get()
+            ->keyBy('student_id');
+
+        $students = $enrollments->map(function ($enrollment) use ($attendances) {
+            $student = $enrollment->student;
+            $today   = $attendances->get($student->id);
+
+            return [
+                'student_id'    => $student->id,
+                'name'          => trim($student->first_name.' '.$student->last_name),
+                'today_status'  => $today?->status,
+                'today_time'    => $today?->created_at?->format('H:i'),
+            ];
+        })->values()->all();
+
+        $presentCount = $attendances->where('status', 'present')->count();
+
+        return [
+            'present_count'  => $presentCount,
+            'enrolled_count' => $enrollments->count(),
+            'students'       => $students,
+            'updates'        => $extraUpdates ?? [],
+        ];
     }
 }
