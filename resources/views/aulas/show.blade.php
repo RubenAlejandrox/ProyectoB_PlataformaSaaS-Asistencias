@@ -18,7 +18,8 @@
             <div class="header-text">
                 <h1>{{ $classroom->subject_name }}</h1>
                 <p>
-                    {{ $classroom->period }}
+                    Grupo {{ $classroom->grupo }}
+                    · {{ $classroom->period }}
                     · Docente: {{ $classroom->teacher?->first_name }} {{ $classroom->teacher?->last_name }}
                     ·
                     <span class="status {{ $classroom->is_active ? 'status-open' : 'status-closed' }}">

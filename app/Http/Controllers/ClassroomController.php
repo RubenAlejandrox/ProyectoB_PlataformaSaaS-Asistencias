@@ -43,6 +43,7 @@ class ClassroomController extends Controller
 
         $classrooms = $query->orderBy('is_active', 'desc')
             ->orderBy('subject_name')
+            ->orderBy('grupo')
             ->get();
 
         // Límite del plan
@@ -82,6 +83,7 @@ class ClassroomController extends Controller
             ->whereIn('id', $enrolledIds)
             ->orderBy('is_active', 'desc')
             ->orderBy('subject_name')
+            ->orderBy('grupo')
             ->get();
 
         $stats = [
@@ -199,7 +201,7 @@ class ClassroomController extends Controller
         ])->all();
 
         $safeName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $classroom->subject_name);
-        $filename = "alumnos_{$safeName}_{$classroom->period}.xlsx";
+        $filename = "alumnos_{$safeName}_{$classroom->grupo}_{$classroom->period}.xlsx";
 
         return Excel::download(new ClassroomStudentsExport($rows), $filename);
     }
@@ -210,11 +212,14 @@ class ClassroomController extends Controller
         $request->validate([
             'subject_name'       => 'required|string|max:100',
             'period'             => 'required|string|max:20',
+            'grupo'              => ['required', 'regex:/^\d{6}$/'],
             'max_capacity'       => 'required|integer|min:1|max:100',
             'min_attendance_pct' => 'required|integer|min:1|max:100',
         ], [
             'subject_name.required' => 'El nombre del aula es obligatorio.',
             'period.required'       => 'El ciclo escolar es obligatorio.',
+            'grupo.required'        => 'El grupo es obligatorio.',
+            'grupo.regex'           => 'El grupo debe ser numérico de exactamente 6 dígitos (ej. 189900).',
             'max_capacity.required' => 'La capacidad máxima es obligatoria.',
         ]);
 
@@ -238,15 +243,18 @@ class ClassroomController extends Controller
                     throw new \RuntimeException('Límite de aulas alcanzado. Actualiza tu plan.');
                 }
 
-                // Unicidad teacher + subject + period
+                // Unicidad: misma materia + período + grupo (permite dos Historia con grupos distintos)
                 $exists = Classroom::withoutGlobalScopes()
                     ->where('teacher_id', $user->id)
                     ->where('subject_name', $request->subject_name)
                     ->where('period', $request->period)
+                    ->where('grupo', $request->grupo)
                     ->exists();
 
                 if ($exists) {
-                    throw new \RuntimeException("Ya tienes un aula de {$request->subject_name} para el período {$request->period}.");
+                    throw new \RuntimeException(
+                        "Ya tienes un aula de {$request->subject_name} (grupo {$request->grupo}) para el período {$request->period}."
+                    );
                 }
 
                 $classroom = Classroom::create([
@@ -254,6 +262,7 @@ class ClassroomController extends Controller
                     'teacher_id'         => $user->id,
                     'subject_name'       => $request->subject_name,
                     'period'             => $request->period,
+                    'grupo'              => $request->grupo,
                     'max_capacity'       => $request->max_capacity,
                     'min_attendance_pct' => $request->min_attendance_pct,
                     'is_active'          => true,
@@ -268,7 +277,7 @@ class ClassroomController extends Controller
         }
 
         return redirect()->route('aulas.index')
-            ->with('success', "Aula \"{$request->subject_name}\" creada exitosamente.");
+            ->with('success', "Aula \"{$request->subject_name}\" (grupo {$request->grupo}) creada exitosamente.");
     }
 
     // ── generateCode — regenerar código de invitación ────────────────────────

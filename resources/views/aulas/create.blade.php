@@ -94,6 +94,27 @@
                                        required>
                             </div>
                             <div class="form-group">
+                                <label class="form-label">Grupo <span class="required">*</span></label>
+                                <input type="text"
+                                       name="grupo"
+                                       class="form-input"
+                                       id="grupoAula"
+                                       placeholder="189900"
+                                       value="{{ old('grupo') }}"
+                                       inputmode="numeric"
+                                       pattern="[0-9]{6}"
+                                       maxlength="6"
+                                       minlength="6"
+                                       oninput="this.value = this.value.replace(/\D/g, '').slice(0, 6); actualizarPreview()"
+                                       required>
+                                <span style="font-size:.75rem;color:var(--text-secondary);">
+                                    6 dígitos numéricos. Diferencia aulas con la misma materia (ej. dos Historia).
+                                </span>
+                                @error('grupo')
+                                    <span style="font-size:.75rem;color:#DC3545;display:block;margin-top:.25rem;">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            <div class="form-group">
                                 <label class="form-label">Período <span class="required">*</span></label>
                                 <select name="period" class="form-input" id="ciclo"
                                         onchange="actualizarPreview()" required>
@@ -186,6 +207,10 @@
                                 <i class="fas fa-circle pre-dot"></i>
                                 Nombre del aula
                             </li>
+                            <li class="pre-check" id="checkGrupo">
+                                <i class="fas fa-circle pre-dot"></i>
+                                Grupo (6 dígitos)
+                            </li>
                             <li class="pre-check" id="checkCiclo">
                                 <i class="fas fa-circle pre-dot"></i>
                                 Período seleccionado
@@ -224,6 +249,10 @@
                     <span class="conf-value" id="confNombre">—</span>
                 </div>
                 <div class="conf-row">
+                    <span class="conf-label">Grupo</span>
+                    <span class="conf-value" id="confGrupo">—</span>
+                </div>
+                <div class="conf-row">
                     <span class="conf-label">Período</span>
                     <span class="conf-value" id="confCiclo">—</span>
                 </div>
@@ -243,12 +272,15 @@
 <script>
     function actualizarPreview() {
         const nombre = document.getElementById('nombreAula').value.trim();
+        const grupo  = document.getElementById('grupoAula').value.trim();
         const ciclo  = document.getElementById('ciclo').value;
 
         document.getElementById('confNombre').textContent = nombre || '—';
+        document.getElementById('confGrupo').textContent  = grupo  || '—';
         document.getElementById('confCiclo').textContent  = ciclo  || '—';
 
         toggleCheck('checkNombre', nombre.length > 0);
+        toggleCheck('checkGrupo',  /^\d{6}$/.test(grupo));
         toggleCheck('checkCiclo',  ciclo.length > 0);
     }
 

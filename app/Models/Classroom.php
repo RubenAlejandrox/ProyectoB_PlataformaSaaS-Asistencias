@@ -11,7 +11,7 @@ class Classroom extends Model
 
     protected $fillable = [
         'institution_id', 'teacher_id', 'subject_name',
-        'period', 'min_attendance_pct', 'max_capacity', 'is_active',
+        'period', 'grupo', 'min_attendance_pct', 'max_capacity', 'is_active',
     ];
 
     protected function casts(): array
@@ -31,5 +31,10 @@ class Classroom extends Model
         return $this->enrollments()
             ->where('is_active', true)
             ->count() >= $this->max_capacity;
+    }
+
+    public function displayName(): string
+    {
+        return "{$this->subject_name} — Grupo {$this->grupo}";
     }
 }

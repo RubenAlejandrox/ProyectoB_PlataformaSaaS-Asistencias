@@ -14,7 +14,7 @@
             <div class="header-text">
                 <h1>Control de Asistencias</h1>
                 @if($classroom)
-                    <p>{{ $classroom->subject_name }} — {{ $classroom->period }}</p>
+                    <p>{{ $classroom->subject_name }} — Grupo {{ $classroom->grupo }} · {{ $classroom->period }}</p>
                 @else
                     <p>Selecciona un aula para comenzar</p>
                 @endif
@@ -25,7 +25,7 @@
                         <select name="classroom" class="filter-select" onchange="this.form.submit()">
                             @foreach($classrooms as $c)
                                 <option value="{{ $c->id }}" @selected($classroom && $classroom->id === $c->id)>
-                                    {{ $c->subject_name }}
+                                    {{ $c->subject_name }} — Gpo. {{ $c->grupo }}
                                 </option>
                             @endforeach
                         </select>

@@ -238,7 +238,7 @@
                         </span>
                     </div>
                     <h3 class="aula-nombre">{{ $classroom->subject_name }}</h3>
-                    <p class="aula-grupo">{{ $classroom->period }}</p>
+                    <p class="aula-grupo">Grupo {{ $classroom->grupo }} · {{ $classroom->period }}</p>
                     <div class="aula-stats">
                         <div class="aula-stat">
                             <i class="fas fa-users"></i>
@@ -387,7 +387,7 @@
                                             <div class="aula-dot dot-{{ $classroom->is_active ? 'a' : 'closed' }}"></div>
                                             <div>
                                                 <span class="cell-nombre">{{ $classroom->subject_name }}</span>
-                                                <span class="cell-grupo">{{ $classroom->period }}</span>
+                                                <span class="cell-grupo">Grupo {{ $classroom->grupo }} · {{ $classroom->period }}</span>
                                             </div>
                                         </div>
                                     </td>

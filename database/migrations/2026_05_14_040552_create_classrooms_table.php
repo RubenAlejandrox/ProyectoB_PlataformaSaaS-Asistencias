@@ -18,11 +18,12 @@ return new class extends Migration
             $table->foreignUuid('teacher_id')->constrained('users')->cascadeOnDelete();
             $table->string('subject_name');
             $table->string('period');
+            $table->char('grupo', 6);
             $table->unsignedSmallInteger('min_attendance_pct')->default(80);
             $table->unsignedSmallInteger('max_capacity')->default(30);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
-            $table->unique(['teacher_id', 'subject_name', 'period']);
+            $table->unique(['teacher_id', 'subject_name', 'period', 'grupo']);
         });
     }
 

@@ -61,6 +61,7 @@ class ReportGeneratorServiceTest extends TestCase
             'teacher_id' => $teacher->id,
             'subject_name' => 'Matematicas',
             'period' => '2026-A',
+            'grupo'  => '189900',
             'min_attendance_pct' => 80,
             'max_capacity' => 30,
             'is_active' => true,

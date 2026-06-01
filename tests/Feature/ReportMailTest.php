@@ -75,6 +75,7 @@ class ReportMailTest extends TestCase
             'teacher_id' => $teacher->id,
             'subject_name' => 'Mate',
             'period' => '2026-A',
+            'grupo'  => '189900',
             'max_capacity' => 30,
             'min_attendance_pct' => 80,
             'is_active' => true,
