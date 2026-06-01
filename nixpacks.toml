@@ -1,0 +1,28 @@
+[phases.setup]
+nixPkgs = [
+  "php83",
+  "php83Extensions.pdo_pgsql",
+  "php83Extensions.mbstring",
+  "php83Extensions.xml",
+  "php83Extensions.curl",
+  "php83Extensions.zip",
+  "php83Extensions.gd",
+  "php83Extensions.bcmath",
+  "php83Extensions.intl",
+  "nodejs_20",
+]
+
+[phases.install]
+cmds = [
+  "composer install --no-dev --optimize-autoloader --no-interaction",
+  "npm ci",
+  "npm run build",
+]
+
+[phases.build]
+cmds = [
+  "chmod +x scripts/railway-start.sh",
+]
+
+[start]
+cmd = "bash scripts/railway-start.sh"
