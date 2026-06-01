@@ -1,275 +1,176 @@
-# Despliegue en Railway — GAMA Asistencias (Laravel 12)
+# Despliegue en Railway — GAMA Asistencias
 
-Guía paso a paso para publicar **ProyectoB_PlataformaSaaS-Asistencias** en [Railway](https://railway.app).
-
----
-
-## 1. Requisitos previos
-
-| Requisito | Detalle |
-|-----------|---------|
-| Cuenta Railway | [railway.app](https://railway.app) — inicio de sesión con **GitHub** |
-| Repositorio | Código en GitHub (rama `main` o la que uses para producción) |
-| Base de datos | **PostgreSQL** (plugin Railway **o** Supabase externo) |
-| Crédito | ~**5 USD/mes** gratis — suficiente para demo/desarrollo |
-| Archivos en el repo | `Procfile`, `nixpacks.toml`, `railway.json`, `scripts/railway-start.sh` (ya incluidos) |
+Guía corregida (Composer + PHP en Nixpacks). Sigue el orden de las **Partes 1–5**.
 
 ---
 
-## 2. Archivos de despliegue (en la raíz del proyecto)
+## Parte 1 — Archivos en el repositorio (ya incluidos)
 
-```
-ProyectoB_PlataformaSaaS-Asistencias/
-├── Procfile              # web + worker + reverb (servicios separados en Railway)
-├── nixpacks.toml         # PHP 8.3, extensiones, composer, npm build
-├── railway.json          # builder Nixpacks + migrate + arranque
-└── scripts/
-    └── railway-start.sh  # cache + php artisan serve en $PORT
-```
+| Archivo | Función |
+|---------|---------|
+| `nixpacks.toml` | PHP 8.3, extensiones, **`phpPackages.composer`**, `npm`, build Vite |
+| `railway.json` | Nixpacks, migrate al arrancar, healthcheck `/up` |
+| `Procfile` | `web` / `worker` / `reverb` |
+| `config/database.php` | `DB_URL`, `sslmode=require` para Supabase |
+| `bootstrap/app.php` | `trustProxies(at: '*')` para HTTPS en Railway |
 
----
-
-## 3. Paso a paso en Railway
-
-### Paso 1 — Subir cambios a GitHub
+**Importante:** En Railway → servicio Web → **Variables**, define también `APP_KEY` **antes del primer build** (o el `config:cache` del build puede fallar). Usa el valor de `php artisan key:generate --show`.
 
 ```bash
-git add Procfile nixpacks.toml railway.json scripts/railway-start.sh docs/deploy/RAILWAY.md
-git commit -m "chore: configuración de despliegue Railway"
+git add nixpacks.toml railway.json Procfile config/database.php bootstrap/app.php docs/deploy/
+git commit -m "fix: Railway Nixpacks con Composer y PHP 8.3"
 git push origin main
 ```
 
-### Paso 2 — Crear proyecto
+---
 
-1. Entra a **Railway** → **New Project**.
-2. Elige **Deploy from GitHub repo**.
-3. Autoriza GitHub y selecciona `ProyectoB_PlataformaSaaS-Asistencias`.
-4. Railway detectará **Nixpacks** gracias a `nixpacks.toml` / `railway.json`.
+## Parte 2 — Variables de entorno (servicio Web)
 
-### Paso 3 — Base de datos PostgreSQL
-
-**Opción A — PostgreSQL en Railway (recomendado para empezar)**
-
-1. En el proyecto → **+ New** → **Database** → **PostgreSQL**.
-2. Abre el servicio Postgres → pestaña **Variables** o **Connect**.
-3. Copia la URL de conexión (formato `postgresql://...`).
-
-**Opción B — Supabase (ya usado en desarrollo)**
-
-Usa la connection string de Supabase (Session mode o Transaction pooler según tu plan).
-
-En el **servicio web** (Laravel), define:
-
-| Variable | Valor |
-|----------|--------|
-| `DB_CONNECTION` | `pgsql` |
-| `DB_URL` | *(URL completa — en Railway: referencia `${{Postgres.DATABASE_URL}}`)* |
-
-Laravel 12 usa la variable **`DB_URL`** (no `DATABASE_URL`). Si Railway solo expone `DATABASE_URL`, crea `DB_URL` con el mismo valor.
-
-Si usas variables sueltas en lugar de URL:
-
-```
-DB_CONNECTION=pgsql
-DB_HOST=...
-DB_PORT=5432
-DB_DATABASE=...
-DB_USERNAME=...
-DB_PASSWORD=...
-```
-
-### Paso 4 — Variables de entorno (servicio Web)
-
-En el servicio de la app → **Variables** → añade o referencia:
-
-#### Obligatorias
+Railway → tu servicio **Web** → **Variables**. Sustituye `TU-APP` y credenciales reales.
 
 ```env
-APP_NAME="GAMA Asistencias"
+# App
+APP_NAME=GAMA Asistencias
 APP_ENV=production
 APP_DEBUG=false
-APP_KEY=base64:...   # generar con: php artisan key:generate --show
-APP_URL=https://TU-DOMINIO.up.railway.app
+APP_KEY=base64:PEGAR_RESULTADO_DE_php_artisan_key_generate_show
+APP_URL=https://TU-APP.up.railway.app
 
+# Logs
 LOG_CHANNEL=stderr
 LOG_LEVEL=error
 
+# Base de datos — Supabase (producción)
 DB_CONNECTION=pgsql
-DB_URL=${{Postgres.DATABASE_URL}}   # si usas Postgres de Railway
+DB_HOST=db.xxxxx.supabase.co
+DB_PORT=5432
+DB_DATABASE=postgres
+DB_USERNAME=postgres
+DB_PASSWORD=TU_PASSWORD_SUPABASE
+DB_SSLMODE=require
+# Opcional URL única:
+# DB_URL=postgresql://postgres:PASSWORD@db.xxxxx.supabase.co:5432/postgres
 
+# Sesión y caché
 SESSION_DRIVER=database
 SESSION_SECURE_COOKIE=true
 SESSION_SAME_SITE=lax
-
+SESSION_DOMAIN=
 CACHE_STORE=database
 QUEUE_CONNECTION=database
 
-SANCTUM_STATEFUL_DOMAINS=TU-DOMINIO.up.railway.app
+# Sanctum (solo host, sin https://)
+SANCTUM_STATEFUL_DOMAINS=TU-APP.up.railway.app
+
+# Supabase Storage
+SUPABASE_URL=https://xxxxx.supabase.co
+SUPABASE_ANON_KEY=tu_anon_key
+SUPABASE_SERVICE_KEY=tu_service_role_key
+SUPABASE_BUCKET_JUSTIFICATIONS=justificantes-adjuntos
+SUPABASE_BUCKET_INSTITUTION_LOGOS=institution-logos
+
+# PayPal (nombres del proyecto: config/paypal.php)
+PAYPAL_MODE=sandbox
+PAYPAL_CLIENT_ID=tu_client_id
+PAYPAL_SECRET=tu_secret
+PAYPAL_CURRENCY=MXN
+PAYPAL_LOCALE=es-MX
+
+# Reverb (después de crear servicio Reverb)
+BROADCAST_CONNECTION=reverb
+REVERB_APP_ID=tu_app_id
+REVERB_APP_KEY=tu_app_key
+REVERB_APP_SECRET=tu_app_secret
+REVERB_HOST=TU-REVERB.up.railway.app
+REVERB_PORT=443
+REVERB_SCHEME=https
+
+VITE_REVERB_APP_KEY="${REVERB_APP_KEY}"
+VITE_REVERB_HOST="${REVERB_HOST}"
+VITE_REVERB_PORT="${REVERB_PORT}"
+VITE_REVERB_SCHEME="${REVERB_SCHEME}"
+
+# Mail (demo sin SMTP)
+MAIL_MAILER=log
 ```
 
-Genera `APP_KEY` en local:
+### Servicio Worker
+
+- **Mismas variables** que el Web.
+- **Start command:**
+  ```bash
+  php artisan queue:work --sleep=3 --tries=3 --timeout=90
+  ```
+
+### Servicio Reverb
+
+- **Mismas variables** que el Web.
+- **Start command:**
+  ```bash
+  php artisan reverb:start --host=0.0.0.0 --port=$PORT
+  ```
+- **Settings** → **Networking** → **Generate Domain** → copia el host en `REVERB_HOST` del servicio Web → **Redeploy** Web.
+
+> Sin Reverb: `BROADCAST_CONNECTION=log` (asistencia docente usa polling).
+
+---
+
+## Parte 3 — Generar `APP_KEY`
+
+En tu PC (en la carpeta del proyecto):
 
 ```bash
 php artisan key:generate --show
 ```
 
-#### Supabase Storage (justificantes / logos)
+Copia `base64:...` → variable `APP_KEY` en Railway (Web, Worker y Reverb).
 
-```env
-SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_KEY=...
-SUPABASE_BUCKET_JUSTIFICATIONS=justificantes-adjuntos
-SUPABASE_BUCKET_INSTITUTION_LOGOS=institution-logos
-```
+---
 
-#### PayPal (sandbox o live)
+## Parte 4 — Supabase (sesiones y caché)
 
-```env
-PAYPAL_MODE=sandbox
-PAYPAL_CLIENT_ID=...
-PAYPAL_CLIENT_SECRET=...
-```
+Lo normal es que **`php artisan migrate`** cree `sessions`, `cache`, etc.
 
-#### Correo (opcional en demo)
+Si hace falta manualmente, ejecuta en **Supabase → SQL Editor**:
 
-```env
-MAIL_MAILER=smtp
-MAIL_HOST=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USERNAME=...
-MAIL_PASSWORD=...
-MAIL_FROM_ADDRESS=...
-MAIL_FROM_NAME="GAMA Solutions"
-```
+`docs/deploy/supabase-railway-tablas.sql`
 
-Sin SMTP, deja `MAIL_MAILER=log` (no envía correos reales).
+---
 
-#### Tiempo real (Reverb) — ver Paso 6
+## Parte 5 — Orden de deploy
 
-```env
-BROADCAST_CONNECTION=reverb
-REVERB_APP_ID=...
-REVERB_APP_KEY=...
-REVERB_APP_SECRET=...
-REVERB_HOST=TU-SERVICIO-REVERB.up.railway.app
-REVERB_PORT=443
-REVERB_SCHEME=https
-```
-
-### Paso 5 — Dominio público
-
-1. Servicio web → **Settings** → **Networking** → **Generate Domain**.
-2. Copia la URL (`https://xxxx.up.railway.app`).
-3. Actualiza `APP_URL` y `SANCTUM_STATEFUL_DOMAINS` con ese host (sin `https://` en Sanctum: solo dominio).
-
-### Paso 6 — Servicios adicionales (opcional pero recomendado)
-
-Railway ejecuta **un proceso por servicio**. El `Procfile` define tres roles:
-
-| Procfile | Qué hace | Cómo en Railway |
-|----------|----------|-----------------|
-| `web` | App HTTP | Servicio principal (por defecto) |
-| `worker` | Colas `queue:work` | **+ New Service** → mismo repo → Start: `php artisan queue:work --sleep=3 --tries=3 --timeout=90` |
-| `reverb` | WebSockets | **+ New Service** → Start: `php artisan reverb:start --host=0.0.0.0 --port=$PORT` |
-
-**Reverb**
-
-1. Duplica el servicio o crea uno nuevo desde el mismo repositorio.
-2. **Settings** → **Deploy** → **Custom Start Command**:
+1. Push del código con `nixpacks.toml` actualizado (incluye **Composer**).
+2. Railway → **New Project** → repo GitHub.
+3. Servicio **Web** → pegar variables (con `APP_KEY`).
+4. **Networking** → **Generate Domain** → actualizar `APP_URL` y `SANCTUM_STATEFUL_DOMAINS`.
+5. **Deploy** del Web → revisar logs (debe verse `composer install` y `Serving on 0.0.0.0:PORT`).
+6. Probar: `https://TU-APP.up.railway.app/up` → debe responder OK.
+7. Crear servicio **Worker** (mismas vars + start command).
+8. Crear servicio **Reverb** → dominio → actualizar `REVERB_HOST` en Web → redeploy.
+9. Seeders iniciales (una vez), shell Railway o local contra Supabase:
    ```bash
-   php artisan reverb:start --host=0.0.0.0 --port=$PORT
+   php artisan db:seed --class=PlansSeeder --force
+   php artisan db:seed --class=RolesSeeder --force
    ```
-3. Genera dominio público para Reverb.
-4. En el servicio **web**, apunta `REVERB_HOST` al host de Reverb y `REVERB_SCHEME=https`.
-
-**Worker**
-
-1. Nuevo servicio, mismo repo.
-2. Start command:
-   ```bash
-   php artisan queue:work --sleep=3 --tries=3 --timeout=90
-   ```
-3. Copia las mismas variables de BD que el servicio web.
-
-> Si no despliegas Reverb, usa `BROADCAST_CONNECTION=log` y la asistencia en tiempo real del docente usará solo **polling** (ya implementado).
-
-### Paso 7 — Migraciones y seeders
-
-`railway.json` incluye:
-
-```json
-"preDeployCommand": "php artisan migrate --force --no-interaction"
-```
-
-En cada deploy se aplican migraciones.
-
-**Primera vez** (planes, roles): ejecuta en Railway **one-off shell** o local contra la BD de producción:
-
-```bash
-php artisan db:seed --class=PlansSeeder --force
-php artisan db:seed --class=RolesSeeder --force
-```
-
-(Ajusta según los seeders que uses.)
-
-### Paso 8 — Primer deploy
-
-1. **Deploy** → espera build (composer + `npm run build`).
-2. Revisa **Deploy Logs** — debe terminar con `php artisan serve` en el puerto `$PORT`.
-3. Abre la URL pública → login.
-
-### Paso 9 — Health check
-
-Laravel expone `GET /up`. En Railway → **Settings** → Healthcheck path: `/up`.
 
 ---
 
-## 4. Checklist post-despliegue
+## Si el build falla otra vez
 
-- [ ] `APP_KEY` definida
-- [ ] `APP_DEBUG=false` en producción
-- [ ] `APP_URL` coincide con el dominio Railway
-- [ ] Migraciones OK (tablas en Postgres)
-- [ ] Login web funciona (cookies / `SANCTUM_STATEFUL_DOMAINS`)
-- [ ] Subida de justificantes (Supabase keys)
-- [ ] PayPal callbacks apuntan a `APP_URL/paypal/success` y `/paypal/cancel`
-- [ ] Worker activo si usas colas
-- [ ] Reverb + variables si quieres tiempo real por WebSocket
+| Error | Qué hacer |
+|-------|-----------|
+| `composer: command not found` | Confirma que `phpPackages.composer` está en `nixpacks.toml` y haz **Redeploy** limpio. |
+| `config:cache` sin APP_KEY | Añade `APP_KEY` en variables del servicio **antes** del build. |
+| 419 / sesión | `SESSION_DOMAIN` vacío; `SANCTUM_STATEFUL_DOMAINS` = host Railway sin `https://`. |
+| SSL base de datos | `DB_SSLMODE=require` y host Supabase correcto. |
+| Assets sin CSS | Revisa log: `npm run build` debe completar sin error. |
 
 ---
 
-## 5. Problemas frecuentes
+## Seguridad
 
-| Síntoma | Solución |
-|---------|----------|
-| 500 al abrir la app | Revisa logs; falta `APP_KEY` o `DATABASE_URL` |
-| 419 CSRF / sesión | `SESSION_DOMAIN` vacío; `SANCTUM_STATEFUL_DOMAINS` con tu dominio Railway |
-| Assets sin estilo | Verifica que `npm run build` corrió en el build (Vite → `public/build`) |
-| `config:cache` falla en build | Normal: el script optimiza en **runtime** (`railway-start.sh`) |
-| Reverb no conecta | Servicio Reverb separado, `REVERB_HOST` correcto, `forceTLS` en front |
-| Colas no procesan | Servicio **worker** desplegado y `QUEUE_CONNECTION=database` |
+No subas al repositorio `.env` con claves reales. Rota credenciales si se compartieron en chat o logs.
 
 ---
 
-## 6. Costos y límites
-
-- Plan Hobby: crédito mensual limitado; un servicio web + Postgres suele bastar para demo.
-- Cada servicio extra (worker, reverb) consume más crédito.
-- Para producción seria, valora plan Pro y BD administrada.
-
----
-
-## 7. Comandos útiles (Railway CLI, opcional)
-
-```bash
-npm i -g @railway/cli
-railway login
-railway link
-railway logs
-railway run php artisan migrate:status
-```
-
----
-
-*G.A.M.A. Solutions — Control de Calidad / DevOps*
+*G.A.M.A. Solutions — DevOps*

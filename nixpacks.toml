@@ -1,28 +1,38 @@
 [phases.setup]
 nixPkgs = [
   "php83",
+  "php83Extensions.pdo",
   "php83Extensions.pdo_pgsql",
+  "php83Extensions.pgsql",
   "php83Extensions.mbstring",
   "php83Extensions.xml",
   "php83Extensions.curl",
   "php83Extensions.zip",
   "php83Extensions.gd",
   "php83Extensions.bcmath",
-  "php83Extensions.intl",
+  "php83Extensions.fileinfo",
+  "php83Extensions.tokenizer",
+  "php83Extensions.ctype",
+  "php83Extensions.openssl",
   "nodejs_20",
+  "npm",
+  "phpPackages.composer"
 ]
 
 [phases.install]
 cmds = [
   "composer install --no-dev --optimize-autoloader --no-interaction",
-  "npm ci",
-  "npm run build",
+  "npm install",
+  "npm run build"
 ]
 
 [phases.build]
 cmds = [
-  "chmod +x scripts/railway-start.sh",
+  "php artisan config:cache || true",
+  "php artisan route:cache || true",
+  "php artisan view:cache || true",
+  "php artisan event:cache || true"
 ]
 
 [start]
-cmd = "bash scripts/railway-start.sh"
+cmd = "php artisan migrate --force --no-interaction && php artisan serve --host=0.0.0.0 --port=$PORT"
