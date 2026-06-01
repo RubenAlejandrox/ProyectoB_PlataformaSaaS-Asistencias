@@ -15,7 +15,6 @@ nixPkgs = [
   "php83Extensions.ctype",
   "php83Extensions.openssl",
   "nodejs_20",
-  "npm",
   "phpPackages.composer"
 ]
 

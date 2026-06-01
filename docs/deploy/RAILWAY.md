@@ -160,6 +160,7 @@ Si hace falta manualmente, ejecuta en **Supabase → SQL Editor**:
 | Error | Qué hacer |
 |-------|-----------|
 | `composer: command not found` | Confirma que `phpPackages.composer` está en `nixpacks.toml` y haz **Redeploy** limpio. |
+| `undefined variable 'npm'` | No pongas `npm` en `nixPkgs`; usa solo `nodejs_20` (npm ya viene incluido). |
 | `config:cache` sin APP_KEY | Añade `APP_KEY` en variables del servicio **antes** del build. |
 | 419 / sesión | `SESSION_DOMAIN` vacío; `SANCTUM_STATEFUL_DOMAINS` = host Railway sin `https://`. |
 | SSL base de datos | `DB_SSLMODE=require` y host Supabase correcto. |
