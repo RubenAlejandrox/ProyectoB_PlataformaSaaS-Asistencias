@@ -73,6 +73,19 @@ class ProfileTest extends TestCase
     }
 
     #[Test]
+    public function web_login_persists_session_for_dashboard(): void
+    {
+        $user = $this->createUser('persist@test.com', 'Administrator');
+
+        $this->post('/login', [
+            'email'    => $user->email,
+            'password' => 'Password1!',
+        ])->assertRedirect(route('dashboard'));
+
+        $this->get('/')->assertOk();
+    }
+
+    #[Test]
     public function any_role_can_view_profile(): void
     {
         foreach (['Administrator', 'Teacher', 'Student'] as $role) {

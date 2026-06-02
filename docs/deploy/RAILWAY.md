@@ -86,7 +86,8 @@ DB_SSLMODE=require
 SESSION_DRIVER=database
 SESSION_SECURE_COOKIE=true
 SESSION_SAME_SITE=lax
-SESSION_DOMAIN=TU-APP.up.railway.app
+# Dejar vacío salvo dominio personalizado; si no coincide con el host real → loop de login
+SESSION_DOMAIN=
 CACHE_STORE=database
 QUEUE_CONNECTION=database
 
@@ -198,7 +199,8 @@ Si hace falta manualmente, ejecuta en **Supabase → SQL Editor**:
 | `undefined variable 'npm'` | No pongas `npm` en `nixPkgs`; usa solo `nodejs_20` (npm ya viene incluido). |
 | `config:cache` sin APP_KEY | Añade `APP_KEY` en variables del servicio **antes** del build. |
 | 500 al guardar sesión | `sessions.user_id` debe ser **uuid** si `users.id` es uuid. Corre migraciones o `docs/deploy/supabase-railway-tablas.sql`. |
-| 419 / sesión | `SESSION_DOMAIN` = host Railway sin `https://`; `SANCTUM_STATEFUL_DOMAINS` igual. |
+| Loop login tras POST /login | Sesión en BD pero cookie no llega: vacía `SESSION_DOMAIN` o alinea con host; `APP_URL=https://TU-APP...`; no uses `config:cache` con vars viejas. |
+| 419 / sesión | `SANCTUM_STATEFUL_DOMAINS` = host sin `https://`; `SESSION_SECURE_COOKIE=true` en HTTPS. |
 | `nginx: not found` | Start command = `bash scripts/railway-start.sh` (ver `railway.json` / Procfile). |
 | Resend sin enviar | Variable `RESEND_API_KEY` (no solo `RESEND_KEY`). |
 | SSL base de datos | `DB_SSLMODE=require` y host Supabase correcto. |
