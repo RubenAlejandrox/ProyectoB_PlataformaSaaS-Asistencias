@@ -8,11 +8,39 @@ Guía corregida (Composer + PHP en Nixpacks). Sigue el orden de las **Partes 1�
 
 | Archivo | Función |
 |---------|---------|
-| `nixpacks.toml` | PHP 8.3, extensiones, **`phpPackages.composer`**, `npm`, build Vite |
-| `railway.json` | Nixpacks, migrate al arrancar, healthcheck `/up` |
+| `nixpacks.toml` | PHP 8.3, extensiones, **`phpPackages.composer`**, `npm`, build Vite, `NIXPACKS_PHP_ROOT_DIR` |
+| `nginx.template.conf` | Nginx + buffers FastCGI, `client_max_body_size`, timeouts (evita 502/504) |
+| `.user.ini` / `public/.user.ini` | `memory_limit`, subidas y `max_execution_time` para PHP |
+| `scripts/railway-start-nginx.sh` | Arranque **Nginx + PHP-FPM** (producción; no `artisan serve`) |
+| `railway.json` | Nixpacks, **preDeploy** migrate, start Nginx, healthcheck `/up` |
 | `Procfile` | `web` / `worker` / `reverb` |
 | `config/database.php` | `DB_URL`, `sslmode=require` para Supabase |
 | `bootstrap/app.php` | `trustProxies(at: '*')` para HTTPS en Railway |
+
+### Opción 1 — Nixpacks + Nginx + PHP-FPM (recomendado)
+
+El servicio **Web** ya no usa `php artisan serve` (un solo proceso, malo para ~200 usuarios). Usa la plantilla oficial de Nixpacks ampliada en `nginx.template.conf`.
+
+**PHP (`memory_limit`, subidas, tiempo de ejecución)** — archivo `.user.ini` en la raíz (y copia en `public/`). En el build, Nixpacks también lo fusiona al `php.ini` del contenedor. Respaldo en Nginx vía `fastcgi_param PHP_VALUE` en `nginx.template.conf`.
+
+**Nginx (502/504, carga)** — `nginx.template.conf`:
+
+- `client_max_body_size 50M`
+- `fastcgi_buffers 16 16k`, `fastcgi_buffer_size 32k`
+- `fastcgi_read_timeout 120s`
+
+**PHP-FPM (`pm.max_children`)** — en Railway → servicio **Web** → **Variables**:
+
+| Variable | Valor sugerido | Notas |
+|----------|----------------|-------|
+| `FPM_MAX_CHILDREN` | `20` | Plan ~512 MB RAM |
+| `FPM_MAX_CHILDREN` | `40`–`50` | Plan 1 GB+ RAM (Nixpacks trae 50 por defecto) |
+
+`scripts/railway-start-nginx.sh` aplica `FPM_MAX_CHILDREN` al arrancar si la defines. No subas por encima de lo que permita la RAM (cada worker Laravel suele usar ~80–150 MB).
+
+**Migraciones** — van en **preDeploy** (`railway.json`), no en el loop de arranque de Nginx, para no bloquear cada request mientras migran.
+
+**Desarrollo local** — sigue pudiendo usar `bash scripts/railway-start.sh` (`artisan serve`).
 
 **Importante:** En Railway → servicio Web → **Variables**, define también `APP_KEY` **antes del primer build** (o el `config:cache` del build puede fallar). Usa el valor de `php artisan key:generate --show`.
 
@@ -143,7 +171,7 @@ Si hace falta manualmente, ejecuta en **Supabase → SQL Editor**:
 2. Railway → **New Project** → repo GitHub.
 3. Servicio **Web** → pegar variables (con `APP_KEY`).
 4. **Networking** → **Generate Domain** → actualizar `APP_URL` y `SANCTUM_STATEFUL_DOMAINS`.
-5. **Deploy** del Web → revisar logs (debe verse `composer install` y `Serving on 0.0.0.0:PORT`).
+5. **Deploy** del Web → revisar logs (`composer install`, `npm run build`, arranque **nginx** / **php-fpm**, no `artisan serve`).
 6. Probar: `https://TU-APP.up.railway.app/up` → debe responder OK.
 7. Crear servicio **Worker** (mismas vars + start command).
 8. Crear servicio **Reverb** → dominio → actualizar `REVERB_HOST` en Web → redeploy.
@@ -165,6 +193,9 @@ Si hace falta manualmente, ejecuta en **Supabase → SQL Editor**:
 | 419 / sesión | `SESSION_DOMAIN` vacío; `SANCTUM_STATEFUL_DOMAINS` = host Railway sin `https://`. |
 | SSL base de datos | `DB_SSLMODE=require` y host Supabase correcto. |
 | Assets sin CSS | Revisa log: `npm run build` debe completar sin error. |
+| 502 / 504 en picos de tráfico | Sube `FPM_MAX_CHILDREN` según RAM; revisa `nginx.template.conf` (timeouts/buffers). |
+| Subida de archivo &gt; 1 MB falla | Confirma `.user.ini` y `client_max_body_size 50M` en `nginx.template.conf`. |
+| Sigue saliendo `artisan serve` | En Railway → **Settings** → Start command debe ser `bash scripts/railway-start-nginx.sh` o vacío si usas `railway.json`. |
 
 ---
 

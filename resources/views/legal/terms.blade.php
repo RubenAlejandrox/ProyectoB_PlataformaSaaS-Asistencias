@@ -26,7 +26,7 @@
 
 @section('content')
 <div class="main-content">
-    <!-- Page Header -->
+    {{-- Page Header --}}
     <div class="page-header">
         <div class="header-content">
             <div class="header-text">
@@ -36,7 +36,7 @@
         </div>
     </div>
 
-    <!-- Terms Content -->
+    {{-- Terms Content --}}
     <div class="card">
         <div class="card-body">
             <div class="terms-content">

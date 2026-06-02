@@ -1,5 +1,24 @@
 <?php
 
+/**
+ * @descripcion  Controlador web de asistencias (docente/alumno): sesiones, claves, registro y roster en tiempo real.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.1.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios      2026-06-02 - Optimización roster/polling y marcado masivo de faltas
+ *               2026-06-02 - Incorporación de cabecera de prólogo
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Events\AttendanceRegistered;
@@ -23,10 +42,19 @@ class AttendanceWebController extends Controller
     /** Duraciones de la ventana de registro (segundos). */
     private const KEY_DURATION_SECONDS = [45, 60, 180];
 
+    /**
+     * @param AttendanceProgressService $progressService Servicio de progreso y roster de asistencia
+     */
     public function __construct(
         private AttendanceProgressService $progressService
     ) {}
 
+    /**
+     * Panel web del docente: aulas, sesión del día, alumnos y estadísticas.
+     *
+     * @param Request $request Parámetro opcional classroom (UUID del aula seleccionada)
+     * @return View Vista asistencias.docente
+     */
     public function teacherIndex(Request $request): View
     {
         $user = auth()->user();
@@ -94,9 +122,15 @@ class AttendanceWebController extends Controller
                     ->keyBy('student_id')
                 : collect();
 
-            $students = $enrollments->map(function ($enrollment) use ($classroom, $todayAttendances, &$stats) {
+            $progressMap = $this->progressService->calculateBulk(
+                $classroom->id,
+                $enrollments->pluck('student.id')
+            );
+
+            $students = $enrollments->map(function ($enrollment) use ($classroom, $todayAttendances, $progressMap, &$stats) {
                 $student  = $enrollment->student;
-                $progress = $this->progressService->calculate($student->id, $classroom->id);
+                $progress = $progressMap[$student->id]
+                    ?? $this->progressService->calculate($student->id, $classroom->id);
 
                 if (in_array($progress['light'], ['amber', 'red'], true)) {
                     $stats['at_risk']++;
@@ -146,7 +180,9 @@ class AttendanceWebController extends Controller
     }
 
     /**
-     * @return array<int, array{seconds: int, label: string}>
+     * Opciones de duración disponibles para la ventana de registro de asistencia.
+     *
+     * @return array<int, array{seconds: int, label: string}> Lista de segundos y etiqueta legible
      */
     public static function keyDurationOptions(): array
     {
@@ -157,6 +193,12 @@ class AttendanceWebController extends Controller
         ];
     }
 
+    /**
+     * Panel web del alumno: materias inscritas, historial y faltas sin justificar.
+     *
+     * @param Request $request Parámetro opcional classroom (UUID del aula seleccionada)
+     * @return View Vista asistencias.alumno
+     */
     public function studentIndex(Request $request): View
     {
         $user = auth()->user();
@@ -208,6 +250,12 @@ class AttendanceWebController extends Controller
         ]);
     }
 
+    /**
+     * Abre una sesión de asistencia para el día actual en el aula del docente.
+     *
+     * @param Request $request classroom_id (UUID del aula)
+     * @return RedirectResponse Redirección al panel docente con mensaje flash
+     */
     public function openSession(Request $request): RedirectResponse
     {
         $request->validate([
@@ -243,6 +291,13 @@ class AttendanceWebController extends Controller
             ->with('success', 'Sesión iniciada correctamente.');
     }
 
+    /**
+     * Genera una clave temporal de asistencia para la sesión activa.
+     *
+     * @param Request $request duration_seconds (45, 60 o 180)
+     * @param Session $session Sesión de clase del docente
+     * @return JsonResponse|RedirectResponse Clave y expiración (JSON) o redirección con mensaje
+     */
     public function generateKey(Request $request, Session $session): JsonResponse|RedirectResponse
     {
         $session->loadMissing('classroom');
@@ -294,7 +349,11 @@ class AttendanceWebController extends Controller
     }
 
     /**
-     * Detiene la clave activa antes de que expire (sin cerrar la sesión ni marcar faltas).
+     * Detiene la clave activa, marca faltas a no registrados y devuelve el roster actualizado.
+     *
+     * @param Request $request Solicitud HTTP (acepta JSON o formulario web)
+     * @param Session $session Sesión de clase del docente
+     * @return JsonResponse|RedirectResponse Roster y mensaje, o error 403/422
      */
     public function stopKey(Request $request, Session $session): JsonResponse|RedirectResponse
     {
@@ -338,7 +397,7 @@ class AttendanceWebController extends Controller
         if ($request->expectsJson()) {
             return response()->json([
                 'message' => $message,
-                'data'    => $this->sessionRosterPayload($session, $marked['updates']),
+                'data'    => $this->sessionRosterPayload($session, $marked['updates'], includeProgress: true),
             ]);
         }
 
@@ -347,6 +406,13 @@ class AttendanceWebController extends Controller
             ->with('success', $message);
     }
 
+    /**
+     * Cierra la sesión, desactiva claves y registra faltas para alumnos sin asistencia.
+     *
+     * @param Request $request Solicitud HTTP (acepta JSON o formulario web)
+     * @param Session $session Sesión de clase del docente
+     * @return JsonResponse|RedirectResponse Confirmación con roster (JSON) o redirección
+     */
     public function closeSession(Request $request, Session $session): JsonResponse|RedirectResponse
     {
         $session->loadMissing('classroom');
@@ -383,7 +449,7 @@ class AttendanceWebController extends Controller
         if ($request->expectsJson()) {
             return response()->json([
                 'message' => 'Sesión cerrada. Faltas registradas para alumnos sin asistencia.',
-                'data'    => $this->sessionRosterPayload($session),
+                'data'    => $this->sessionRosterPayload($session, includeProgress: true),
             ]);
         }
 
@@ -392,6 +458,12 @@ class AttendanceWebController extends Controller
             ->with('success', 'Sesión cerrada. Faltas registradas para alumnos sin asistencia.');
     }
 
+    /**
+     * Devuelve el roster en tiempo real de la sesión (presentes, inscritos, clave activa).
+     *
+     * @param Session $session Sesión de clase del docente
+     * @return JsonResponse Payload con alumnos y contadores
+     */
     public function sessionRoster(Session $session): JsonResponse
     {
         $session->loadMissing('classroom');
@@ -405,6 +477,15 @@ class AttendanceWebController extends Controller
         ]);
     }
 
+    /**
+     * Actualiza manualmente la asistencia de un alumno en la sesión de hoy.
+     *
+     * @param Request $request status: present, absent o pending
+     * @param Session $session Sesión de clase del docente
+     * @param User $student Alumno inscrito en el aula
+     * @return JsonResponse Estado actualizado o error 403/422
+     * @throws \RuntimeException Si se intenta dejar pendiente con justificante aprobado
+     */
     public function updateStudentAttendance(Request $request, Session $session, User $student): JsonResponse
     {
         $session->loadMissing('classroom');
@@ -502,7 +583,8 @@ class AttendanceWebController extends Controller
             ->first();
 
         if ($wasPresent && $attendance) {
-            event(new AttendanceRegistered($attendance, $classroomId));
+            $progress = $this->progressService->calculate($student->id, $classroomId);
+            event(new AttendanceRegistered($attendance, $classroomId, $progress));
         }
 
         $this->progressService->dispatchTrafficLightIfChanged($student->id, $classroomId, $previousLight);
@@ -529,6 +611,12 @@ class AttendanceWebController extends Controller
         ]);
     }
 
+    /**
+     * Registra asistencia del alumno autenticado con clave (web o JSON según Accept).
+     *
+     * @param Request $request Clave de acceso de 8 caracteres (access_key)
+     * @return RedirectResponse|JsonResponse Confirmación o errores de validación
+     */
     public function register(Request $request): RedirectResponse|JsonResponse
     {
         $request->validate([
@@ -591,7 +679,8 @@ class AttendanceWebController extends Controller
             'status'     => 'present',
         ]);
 
-        event(new AttendanceRegistered($attendance, $classroomId));
+        $progressAfter = $this->progressService->calculate($studentId, $classroomId);
+        event(new AttendanceRegistered($attendance, $classroomId, $progressAfter));
         $this->progressService->dispatchTrafficLightIfChanged($studentId, $classroomId, $previousLight);
 
         if ($request->expectsJson()) {
@@ -626,26 +715,57 @@ class AttendanceWebController extends Controller
             ->get()
             ->keyBy('student_id');
 
+        $missingIds = $enrolledIds->filter(
+            fn ($studentId) => ! $existingAttendances->has($studentId)
+        )->values();
+
+        if ($missingIds->isEmpty()) {
+            return ['count' => 0, 'updates' => []];
+        }
+
+        $now     = now();
         $updates = [];
 
-        foreach ($enrolledIds as $studentId) {
-            if ($existingAttendances->has($studentId)) {
-                continue;
-            }
-
-            $attendance = Attendance::create([
+        DB::transaction(function () use ($session, $missingIds, $now, &$updates) {
+            $rows = $missingIds->map(fn ($studentId) => [
+                'id'         => (string) Str::uuid(),
                 'session_id' => $session->id,
                 'student_id' => $studentId,
                 'status'     => 'absent',
-            ]);
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])->all();
 
-            event(new AttendanceRegistered($attendance, $classroomId));
+            Attendance::insert($rows);
 
-            $updates[] = [
-                'student_id'    => $studentId,
-                'status'        => 'absent',
-                'registered_at' => $attendance->created_at?->format('H:i'),
-            ];
+            foreach ($missingIds as $studentId) {
+                $updates[] = [
+                    'student_id'    => $studentId,
+                    'status'        => 'absent',
+                    'registered_at' => $now->format('H:i'),
+                ];
+            }
+        });
+
+        $newAttendances = Attendance::withoutGlobalScopes()
+            ->where('session_id', $session->id)
+            ->whereIn('student_id', $missingIds)
+            ->get()
+            ->keyBy('student_id');
+
+        $progressMap = $this->progressService->calculateBulk($classroomId, $missingIds);
+
+        foreach ($missingIds as $studentId) {
+            $attendance = $newAttendances->get($studentId);
+            if (! $attendance) {
+                continue;
+            }
+
+            event(new AttendanceRegistered(
+                $attendance,
+                $classroomId,
+                $progressMap[$studentId] ?? null
+            ));
         }
 
         return ['count' => count($updates), 'updates' => $updates];
@@ -653,12 +773,26 @@ class AttendanceWebController extends Controller
 
     /**
      * @param  list<array{student_id: string, status: string, registered_at: ?string}>|null  $extraUpdates
-     * @return array{present_count: int, enrolled_count: int, students: list<array<string, mixed>>, updates: list<array<string, string|null>>}
+     * @return array{
+     *     present_count: int,
+     *     enrolled_count: int,
+     *     session_active: bool,
+     *     has_active_key: bool,
+     *     students: list<array<string, mixed>>,
+     *     updates: list<array<string, string|null>>
+     * }
      */
-    private function sessionRosterPayload(Session $session, ?array $extraUpdates = null): array
-    {
+    private function sessionRosterPayload(
+        Session $session,
+        ?array $extraUpdates = null,
+        bool $includeProgress = false
+    ): array {
         $session->loadMissing('classroom');
         $classroomId = $session->classroom_id;
+        $hasActiveKey = $session->sessionKeys()
+            ->where('is_active', true)
+            ->where('expires_at', '>', now())
+            ->exists();
 
         $enrollments = Enrollment::withoutGlobalScopes()
             ->where('classroom_id', $classroomId)
@@ -671,10 +805,15 @@ class AttendanceWebController extends Controller
             ->get()
             ->keyBy('student_id');
 
-        $students = $enrollments->map(function ($enrollment) use ($attendances, $classroomId) {
-            $student = $enrollment->student;
-            $today   = $attendances->get($student->id);
-            $progress = $this->progressService->calculate($student->id, $classroomId);
+        $studentIds = $enrollments->pluck('student.id');
+        $progressMap = $includeProgress
+            ? $this->progressService->calculateBulk($classroomId, $studentIds)
+            : [];
+
+        $students = $enrollments->map(function ($enrollment) use ($attendances, $progressMap) {
+            $student  = $enrollment->student;
+            $today    = $attendances->get($student->id);
+            $progress = $progressMap[$student->id] ?? null;
 
             return [
                 'student_id'    => $student->id,
@@ -682,8 +821,8 @@ class AttendanceWebController extends Controller
                 'initials'      => strtoupper(substr($student->first_name, 0, 1).substr($student->last_name, 0, 1)),
                 'today_status'  => $today?->status,
                 'today_time'    => $today?->created_at?->format('H:i'),
-                'pct'           => $progress['attendance_pct'],
-                'light'         => $progress['light'],
+                'pct'           => $progress['attendance_pct'] ?? null,
+                'light'         => $progress['light'] ?? null,
             ];
         })->values()->all();
 
@@ -692,6 +831,8 @@ class AttendanceWebController extends Controller
         return [
             'present_count'  => $presentCount,
             'enrolled_count' => $enrollments->count(),
+            'session_active' => (bool) $session->is_active,
+            'has_active_key' => $hasActiveKey,
             'students'       => $students,
             'updates'        => $extraUpdates ?? [],
         ];

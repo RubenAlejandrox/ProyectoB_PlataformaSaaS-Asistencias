@@ -13,9 +13,13 @@ class AttendanceRegistered implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
+    /**
+     * @param  array{attendance_pct?: float, light?: string}|null  $progress
+     */
     public function __construct(
         public Attendance $attendance,
         public string $classroomId,
+        public ?array $progress = null,
     ) {
         $this->attendance->loadMissing('student:id,first_name,last_name');
     }
@@ -43,6 +47,8 @@ class AttendanceRegistered implements ShouldBroadcastNow
             'status'        => $this->attendance->status,
             'registered_at' => $this->attendance->created_at?->toIso8601String(),
             'session_id'    => $this->attendance->session_id,
+            'pct'           => $this->progress['attendance_pct'] ?? null,
+            'light'         => $this->progress['light'] ?? null,
         ];
     }
 }

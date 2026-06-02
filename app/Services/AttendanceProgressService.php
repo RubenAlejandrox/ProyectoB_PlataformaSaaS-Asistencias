@@ -1,5 +1,24 @@
 <?php
 
+/**
+ * @descripcion  Cálculo de porcentaje de asistencia, semáforo y proyección; incluye cálculo bulk para roster.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.1.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios      2026-06-02 - Método calculateBulk para evitar N+1 en roster
+ *               2026-06-02 - Incorporación de cabecera de prólogo
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Services;
 
 use App\Events\TrafficLightAlert;
@@ -14,14 +33,47 @@ use Illuminate\Support\Collection;
 
 class AttendanceProgressService
 {
+    /**
+     * Inyecta el servicio de notificaciones para cambios de semáforo.
+     *
+     * @param StudentNotificationService $notifications Servicio de notificaciones al alumno
+     * @return void
+     */
     public function __construct(
         private StudentNotificationService $notifications
     ) {}
+
     /**
-     * Calcula P = (present + approved) / total × 100 y determina semáforo.
+     * Calcula P = (presentes + justificados aprobados) / total × 100 y determina el semáforo.
+     *
+     * @param string $studentId   UUID del alumno
+     * @param string $classroomId UUID del aula
+     * @return array<string, mixed> Progreso con total_sessions, present_count, approved_count, attendance_pct, threshold y light
+     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException Si el aula no existe
      */
     public function calculate(string $studentId, string $classroomId): array
     {
+        $bulk = $this->calculateBulk($classroomId, [$studentId]);
+
+        return $bulk[$studentId] ?? $this->emptyProgress($studentId, $classroomId);
+    }
+
+    /**
+     * Calcula el progreso de varios alumnos en pocas consultas (evita N+1 en roster y polling).
+     *
+     * @param string $classroomId UUID del aula
+     * @param array<int, string>|Collection<int, string> $studentIds Lista de UUID de alumnos
+     * @return array<string, array<string, mixed>> Mapa student_id => progreso (misma estructura que calculate)
+     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException Si el aula no existe
+     */
+    public function calculateBulk(string $classroomId, array|Collection $studentIds): array
+    {
+        $studentIds = collect($studentIds)->filter()->unique()->values();
+
+        if ($studentIds->isEmpty()) {
+            return [];
+        }
+
         $classroom = Classroom::withoutGlobalScopes()->findOrFail($classroomId);
         $threshold = (int) $classroom->min_attendance_pct;
 
@@ -29,37 +81,77 @@ class AttendanceProgressService
             ->where('classroom_id', $classroomId)
             ->count();
 
-        $presentCount = Attendance::withoutGlobalScopes()
-            ->where('student_id', $studentId)
-            ->where('status', 'present')
-            ->whereHas('session', fn ($q) => $q->where('classroom_id', $classroomId))
-            ->count();
+        $presentCounts = Attendance::withoutGlobalScopes()
+            ->join('class_sessions', 'attendances.session_id', '=', 'class_sessions.id')
+            ->where('class_sessions.classroom_id', $classroomId)
+            ->where('attendances.status', 'present')
+            ->whereIn('attendances.student_id', $studentIds)
+            ->groupBy('attendances.student_id')
+            ->selectRaw('attendances.student_id, COUNT(*) as aggregate')
+            ->pluck('aggregate', 'student_id');
 
-        $approvedCount = Justification::withoutGlobalScopes()
-            ->where('student_id', $studentId)
-            ->where('status', 'approved')
-            ->whereHas('attendance.session', fn ($q) => $q->where('classroom_id', $classroomId))
-            ->count();
+        $approvedCounts = Justification::withoutGlobalScopes()
+            ->join('attendances', 'justifications.attendance_id', '=', 'attendances.id')
+            ->join('class_sessions', 'attendances.session_id', '=', 'class_sessions.id')
+            ->where('class_sessions.classroom_id', $classroomId)
+            ->where('justifications.status', 'approved')
+            ->whereIn('justifications.student_id', $studentIds)
+            ->groupBy('justifications.student_id')
+            ->selectRaw('justifications.student_id, COUNT(*) as aggregate')
+            ->pluck('aggregate', 'student_id');
 
-        $numerator = $presentCount + $approvedCount;
-        $percentage = $totalSessions > 0
-            ? round(($numerator / $totalSessions) * 100, 1)
-            : 0.0;
+        $result = [];
 
-        $light = $this->determineLight($percentage, $threshold);
+        foreach ($studentIds as $studentId) {
+            $presentCount  = (int) ($presentCounts[$studentId] ?? 0);
+            $approvedCount = (int) ($approvedCounts[$studentId] ?? 0);
+            $numerator     = $presentCount + $approvedCount;
+            $percentage    = $totalSessions > 0
+                ? round(($numerator / $totalSessions) * 100, 1)
+                : 0.0;
+
+            $result[$studentId] = [
+                'student_id'      => $studentId,
+                'classroom_id'    => $classroomId,
+                'total_sessions'  => $totalSessions,
+                'present_count'   => $presentCount,
+                'approved_count'  => $approvedCount,
+                'attendance_pct'  => $percentage,
+                'threshold'       => $threshold,
+                'light'           => $this->determineLight($percentage, $threshold),
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyProgress(string $studentId, string $classroomId): array
+    {
+        $classroom = Classroom::withoutGlobalScopes()->findOrFail($classroomId);
+        $threshold = (int) $classroom->min_attendance_pct;
 
         return [
             'student_id'      => $studentId,
             'classroom_id'    => $classroomId,
-            'total_sessions'  => $totalSessions,
-            'present_count'   => $presentCount,
-            'approved_count'  => $approvedCount,
-            'attendance_pct'  => $percentage,
+            'total_sessions'  => 0,
+            'present_count'   => 0,
+            'approved_count'  => 0,
+            'attendance_pct'  => 0.0,
             'threshold'       => $threshold,
-            'light'           => $light,
+            'light'           => $this->determineLight(0.0, $threshold),
         ];
     }
 
+    /**
+     * Determina el color del semáforo según el porcentaje y el umbral mínimo del aula.
+     *
+     * @param float $percentage Porcentaje de asistencia (0–100)
+     * @param int   $threshold  Umbral mínimo configurado en el aula
+     * @return string 'green' | 'amber' | 'red'
+     */
     public function determineLight(float $percentage, int $threshold): string
     {
         if ($percentage >= $threshold) {
@@ -74,7 +166,12 @@ class AttendanceProgressService
     }
 
     /**
-     * Dispara TrafficLightAlert si el semáforo cambió de estado.
+     * Dispara TrafficLightAlert y notifica al alumno si el semáforo cambió de estado.
+     *
+     * @param string $studentId     UUID del alumno
+     * @param string $classroomId   UUID del aula
+     * @param string $previousLight Estado anterior del semáforo ('green', 'amber' o 'red')
+     * @return string|null Nuevo valor de light si hubo cambio; null si permanece igual
      */
     public function dispatchTrafficLightIfChanged(
         string $studentId,
@@ -107,7 +204,10 @@ class AttendanceProgressService
     }
 
     /**
-     * Cuántas faltas más (sin justificar) puede tener y seguir en o por encima del umbral.
+     * Proyecta cuántas faltas sin justificar puede tener el alumno y seguir en o por encima del umbral.
+     *
+     * @param array<string, mixed> $progress Datos de progreso (total_sessions, present_count, approved_count, threshold, attendance_pct)
+     * @return array{remaining: int|null, message: string} remaining es null si no aplica; mensaje descriptivo en español
      */
     public function projectRemainingAbsences(array $progress): array
     {
@@ -156,9 +256,13 @@ class AttendanceProgressService
     }
 
     /**
-     * Calendario mensual con estado por día de sesión.
+     * Construye un calendario mensual con el estado de asistencia por día de sesión.
      *
-     * @return array{year:int,month:int,month_label:string,weeks:array,legend:array}
+     * @param string   $studentId   UUID del alumno
+     * @param string   $classroomId UUID del aula
+     * @param int|null $year        Año (por defecto el actual)
+     * @param int|null $month       Mes 1–12 (por defecto el actual)
+     * @return array{year: int, month: int, month_label: string, weeks: array<int, array<int, array<string, mixed>>>, legend: array<string, string>}
      */
     public function buildMonthlyCalendar(
         string $studentId,
@@ -245,6 +349,13 @@ class AttendanceProgressService
         return 'absent';
     }
 
+    /**
+     * Obtiene los justificantes del alumno para sesiones del aula indicada.
+     *
+     * @param string $studentId   UUID del alumno
+     * @param string $classroomId UUID del aula
+     * @return Collection<int, Justification>
+     */
     public function justificationsForClassroom(string $studentId, string $classroomId): Collection
     {
         return Justification::withoutGlobalScopes()
@@ -256,9 +367,10 @@ class AttendanceProgressService
     }
 
     /**
-     * Lista de alumnos inscritos con porcentaje y semáforo del ciclo.
+     * Lista alumnos inscritos activos con porcentaje de asistencia y semáforo del ciclo.
      *
-     * @return Collection<int, array<string, mixed>>
+     * @param string $classroomId UUID del aula
+     * @return Collection<int, array<string, mixed>> Filas con id, name, email, attendance_pct, light, etc.
      */
     public function rosterForClassroom(string $classroomId): Collection
     {
@@ -288,6 +400,12 @@ class AttendanceProgressService
         })->values();
     }
 
+    /**
+     * Devuelve la etiqueta en español del estado del semáforo.
+     *
+     * @param string $light Valor del semáforo ('green', 'amber' o 'red')
+     * @return string Etiqueta legible ('En regla', 'En observación' o 'En riesgo')
+     */
     public function lightLabel(string $light): string
     {
         return match ($light) {
@@ -297,6 +415,12 @@ class AttendanceProgressService
         };
     }
 
+    /**
+     * Calcula el progreso de asistencia del alumno en todas sus aulas activas.
+     *
+     * @param User $student Usuario alumno con inscripciones activas
+     * @return array<int, array<string, mixed>> Lista de progresos con datos del classroom
+     */
     public function calculateForStudent(User $student): array
     {
         $enrollments = $student->enrollments()

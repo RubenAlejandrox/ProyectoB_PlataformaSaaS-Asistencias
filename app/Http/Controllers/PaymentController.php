@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Controlador HTTP del módulo Payment: expone acciones web/API del dominio.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Models\Payment;
@@ -11,9 +29,19 @@ use Illuminate\View\View;
 
 class PaymentController extends Controller
 {
+    /**
+     * @param InvoiceService $invoiceService Generación de facturas PDF
+     */
     public function __construct(
         private InvoiceService $invoiceService
     ) {}
+
+    /**
+     * Panel administrativo de pagos con filtros y estadísticas.
+     *
+     * @param Request $request Filtros: status, institution_id, search, fechas
+     * @return View Vista admin.pagos.index
+     */
     public function index(Request $request): View
     {
         if (! $request->user()->hasRole('Administrator')) {
@@ -29,6 +57,12 @@ class PaymentController extends Controller
         ]);
     }
 
+    /**
+     * Descarga la factura PDF de un pago completado.
+     *
+     * @param Payment $payment Pago con status completed
+     * @return Response Archivo PDF como adjunto
+     */
     public function invoice(Payment $payment): Response
     {
         if (! auth()->user()->hasRole('Administrator')) {
@@ -47,6 +81,12 @@ class PaymentController extends Controller
         ]);
     }
 
+    /**
+     * Lista pagos paginados para API administrativa.
+     *
+     * @param Request $request Mismos filtros que index
+     * @return JsonResponse data, stats y meta de paginación
+     */
     public function indexApi(Request $request): JsonResponse
     {
         if (! $request->user()->hasRole('Administrator')) {

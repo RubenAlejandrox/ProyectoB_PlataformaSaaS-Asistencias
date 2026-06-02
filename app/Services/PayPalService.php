@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Servicio de dominio PayPal: encapsula reglas de negocio reutilizables.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Services;
 
 use App\Models\Payment;
@@ -18,6 +36,11 @@ class PayPalService
     private PayPalHttpClient $client;
     private string $currency;
 
+    /**
+     * Inicializa el cliente PayPal según modo sandbox o producción y la moneda configurada.
+     *
+     * @return void
+     */
     public function __construct()
     {
         $clientId = config('paypal.client_id');
@@ -32,7 +55,13 @@ class PayPalService
         $this->currency = config('paypal.currency', 'MXN');
     }
 
-    // ── Crear orden PayPal ────────────────────────────────────────────────────
+    /**
+     * Crea una orden de pago PayPal para contratar un plan en una institución.
+     *
+     * @param Plan        $plan        Plan con precio y nombre
+     * @param Institution $institution Institución que realiza el pago
+     * @return array{order_id: string, approve_url: string}|null Datos de la orden y URL de aprobación, o null si falla
+     */
     public function createOrder(Plan $plan, Institution $institution): ?array
     {
         $request = new OrdersCreateRequest();
@@ -71,7 +100,12 @@ class PayPalService
         }
     }
 
-    // ── Capturar pago ─────────────────────────────────────────────────────────
+    /**
+     * Captura el pago de una orden PayPal previamente aprobada.
+     *
+     * @param string $orderId Identificador de la orden en PayPal
+     * @return object|null Resultado de la captura del SDK, o null si falla
+     */
     public function captureOrder(string $orderId): ?object
     {
         $request = new OrdersCaptureRequest($orderId);
@@ -86,7 +120,12 @@ class PayPalService
         }
     }
 
-    // ── processRenewal — con reintentos x3 y registro en payments ────────────
+    /**
+     * Procesa la renovación automática de una suscripción (hasta 3 reintentos y registro en payments).
+     *
+     * @param Subscription $sub Suscripción activa con plan e institución cargados
+     * @return bool true si el cobro y la extensión de end_date fueron exitosos; false tras agotar reintentos
+     */
     public function processRenewal(Subscription $sub): bool
     {
         $attempts = 0;
@@ -166,7 +205,12 @@ class PayPalService
         return false;
     }
 
-    // ── Verificar estado de orden ─────────────────────────────────────────────
+    /**
+     * Consulta el estado actual de una orden PayPal (p. ej. CREATED, APPROVED, COMPLETED).
+     *
+     * @param string $orderId Identificador de la orden en PayPal
+     * @return string|null Estado devuelto por la API, o null si la consulta falla
+     */
     public function getOrderStatus(string $orderId): ?string
     {
         try {

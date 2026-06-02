@@ -460,6 +460,8 @@ function docenteAsistencias() {
         filtroEstado: '',
         timer: null,
         pollTimer: null,
+        rosterSyncInFlight: false,
+        echoConectado: false,
         toasts: [],
         csrf: '{{ csrf_token() }}',
         urlEstatusBase: @json($todaySession ? url('/asistencias/docente/sesiones/'.$todaySession->id.'/alumnos') : null),
@@ -485,12 +487,13 @@ function docenteAsistencias() {
             if (this.claveActiva && this.expiresAt) {
                 this.iniciarCountdown(new Date(this.expiresAt));
             }
-            if (this.sessionId && this.sesionActiva) {
-                this.iniciarPollingRoster();
-            }
             @if($classroom && $todaySession && config('broadcasting.connections.reverb.key'))
             this.initEcho();
             @endif
+            if (!this.echoConectado && this.sessionId && this.sesionActiva && this.claveActiva) {
+                this.iniciarPollingRoster();
+            }
+            window.addEventListener('beforeunload', () => this.detenerPollingRoster());
         },
 
         initEcho() {
@@ -512,6 +515,8 @@ function docenteAsistencias() {
             window.EchoClient = echoClient;
             echoClient.private('attendance.' + this.classroomId)
                 .listen('.attendance.registered', (e) => this.onAttendance(e));
+            this.echoConectado = true;
+            this.detenerPollingRoster();
         },
 
         onAttendance(e) {
@@ -523,11 +528,11 @@ function docenteAsistencias() {
                 ? new Date(e.registered_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
                 : null;
             this.actualizarFilaAlumno(e.student_id, status, hora);
-            this.sincronizarRoster();
+            if (e.pct != null && e.light) {
+                this.actualizarMetricasAlumno(e.student_id, { pct: e.pct, light: e.light });
+            }
             if (status === 'present') {
                 this.notify('success', `${e.student_name || 'Alumno'} registró asistencia.`, 'fa-user-check');
-            } else if (status === 'absent') {
-                this.notify('warning', `Falta registrada: ${e.student_name || 'Alumno'}.`, 'fa-user-times');
             }
         },
 
@@ -545,32 +550,82 @@ function docenteAsistencias() {
             if (i >= 0) this.quitarToast(i);
         },
 
+        detenerPollingRoster() {
+            if (this.pollTimer) {
+                clearTimeout(this.pollTimer);
+                this.pollTimer = null;
+            }
+        },
+
         iniciarPollingRoster() {
-            clearInterval(this.pollTimer);
-            this.pollTimer = setInterval(() => this.sincronizarRoster(), 2500);
+            if (this.echoConectado || !this.claveActiva || !this.sesionActiva) {
+                return;
+            }
+            this.detenerPollingRoster();
+            this.programarProximoPoll(10000);
+        },
+
+        programarProximoPoll(delayMs = 10000) {
+            this.detenerPollingRoster();
+            this.pollTimer = setTimeout(async () => {
+                if (this.echoConectado || !this.claveActiva || !this.sesionActiva) {
+                    this.detenerPollingRoster();
+                    return;
+                }
+                await this.sincronizarRoster();
+                if (!this.echoConectado && this.claveActiva && this.sesionActiva) {
+                    this.programarProximoPoll(delayMs);
+                }
+            }, delayMs);
         },
 
         async sincronizarRoster() {
-            if (!this.urlRoster()) return;
+            if (this.rosterSyncInFlight) {
+                return;
+            }
+            if (!this.urlRoster() || !this.claveActiva) {
+                this.detenerPollingRoster();
+                return;
+            }
+            this.rosterSyncInFlight = true;
             try {
                 const res = await fetch(this.urlRoster(), {
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     credentials: 'same-origin',
                 });
+                if (res.status === 403 || res.status === 404 || res.status === 422) {
+                    this.detenerPollingRoster();
+                    this.sesionActiva = false;
+                    this.aplicarClaveDetenida();
+                    return;
+                }
                 if (!res.ok) return;
                 const json = await res.json();
                 this.aplicarRosterPayload(json.data || {});
             } catch (e) { /* silencioso */ }
+            finally {
+                this.rosterSyncInFlight = false;
+            }
         },
 
         aplicarRosterPayload(payload) {
             if (typeof payload.present_count === 'number') {
                 this.contadorAsistencias = payload.present_count;
             }
+            if (payload.session_active === false) {
+                this.sesionActiva = false;
+                this.detenerPollingRoster();
+            }
+            if (payload.has_active_key === false) {
+                this.aplicarClaveDetenida();
+                this.detenerPollingRoster();
+            }
             (payload.students || []).forEach(s => {
                 const status = s.today_status || 'pending';
                 this.actualizarFilaAlumno(s.student_id, status, s.today_time);
-                this.actualizarMetricasAlumno(s.student_id, s);
+                if (s.pct != null && s.light) {
+                    this.actualizarMetricasAlumno(s.student_id, s);
+                }
             });
             (payload.updates || []).forEach(u => {
                 this.actualizarFilaAlumno(u.student_id, u.status, u.registered_at);
@@ -608,8 +663,9 @@ function docenteAsistencias() {
         actualizarMetricasAlumno(studentId, data) {
             const row = document.querySelector(`tr[data-student-id="${studentId}"]`);
             if (!row) return;
+            if (data.pct == null || !data.light) return;
 
-            const pct = Number(data.pct ?? 0);
+            const pct = Number(data.pct);
             const light = (data.light || 'green').toLowerCase();
 
             const pctCell = row.querySelector('.pct-cell');
@@ -699,7 +755,9 @@ function docenteAsistencias() {
                 this.sesionActiva = true;
                 this.totalSegundos = this.duracion;
                 this.iniciarCountdown(new Date(data.data.expires_at));
-                this.iniciarPollingRoster();
+                if (!this.echoConectado) {
+                    this.iniciarPollingRoster();
+                }
                 this.notify('success', 'Clave generada. Los alumnos pueden registrar asistencia.', 'fa-key');
             } catch (err) {
                 this.notify('error', err.message, 'fa-exclamation-circle');
@@ -768,6 +826,7 @@ function docenteAsistencias() {
             this.segundosRestantes = 0;
             this.countdownLabel = '00:00';
             this.ringOffset = this.circunferencia;
+            this.detenerPollingRoster();
         },
 
         async finalizarVentanaRegistro(mostrarModalExpirado = false) {
@@ -777,10 +836,11 @@ function docenteAsistencias() {
                 if (mostrarModalExpirado) this.modalExpirado = true;
                 return;
             }
+            this.detenerPollingRoster();
+            this.aplicarClaveDetenida();
             this.finalizandoExpiracion = true;
             try {
                 const data = await this.postJson(url);
-                this.aplicarClaveDetenida();
                 if (data.data) this.aplicarRosterPayload(data.data);
                 const n = (data.data?.updates || []).length;
                 if (n > 0) {
@@ -799,6 +859,7 @@ function docenteAsistencias() {
 
         async detenerClave() {
             if (!this.urlDetenerClave() || this.deteniendo) return;
+            this.detenerPollingRoster();
             this.deteniendo = true;
             try {
                 const data = await this.postJson(this.urlDetenerClave());
@@ -820,13 +881,13 @@ function docenteAsistencias() {
 
         async cerrarSesion() {
             if (!this.urlCerrarSesion() || this.cerrando) return;
+            this.detenerPollingRoster();
             this.cerrando = true;
             try {
                 const data = await this.postJson(this.urlCerrarSesion());
                 if (data.data) this.aplicarRosterPayload(data.data);
                 this.sesionActiva = false;
                 this.aplicarClaveDetenida();
-                clearInterval(this.pollTimer);
                 this.confirmarCierre = false;
                 this.confirmarDetener = false;
                 this.notify('success', data.message || 'Sesión cerrada.', 'fa-lock');

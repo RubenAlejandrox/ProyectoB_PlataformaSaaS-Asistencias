@@ -1,5 +1,24 @@
 <?php
 
+/**
+ * @descripcion  CRUD de aulas, campo grupo (6 dígitos) y exportación de alumnos inscritos.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.1.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios      2026-06-02 - Campo grupo y validación de unicidad
+ *               2026-06-02 - Incorporación de cabecera de prólogo
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Exports\ClassroomStudentsExport;
@@ -17,11 +36,18 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ClassroomController extends Controller
 {
+    /**
+     * @param AttendanceProgressService $progressService Servicio de roster y progreso por aula
+     */
     public function __construct(
         private AttendanceProgressService $progressService
     ) {}
 
-    // ── index ─────────────────────────────────────────────────────────────────
+    /**
+     * Lista aulas según rol (docente/admin/alumno) en vista web o JSON.
+     *
+     * @return \Illuminate\View\View|\Illuminate\Http\JsonResponse Vista aulas.index o colección JSON
+     */
     public function index()
     {
         $user = auth()->user();
@@ -109,7 +135,11 @@ class ClassroomController extends Controller
         ));
     }
 
-    // ── create ────────────────────────────────────────────────────────────────
+    /**
+     * Muestra el formulario de creación de aula si el plan lo permite.
+     *
+     * @return \Illuminate\View\View|\Illuminate\Http\RedirectResponse Vista aulas.create o redirección por límite de plan
+     */
     public function create()
     {
         if (auth()->user()->hasRole('Student')) {
@@ -134,7 +164,12 @@ class ClassroomController extends Controller
         return view('aulas.create', compact('activePlan', 'totalClassrooms'));
     }
 
-    // ── show — detalle de aula (docente / administrador) ─────────────────────
+    /**
+     * Detalle de aula con alumnos, sesiones, código de invitación y estadísticas.
+     *
+     * @param Classroom $classroom Aula autorizada para el usuario
+     * @return View Vista aulas.show
+     */
     public function show(Classroom $classroom): View
     {
         $this->authorizeClassroomView($classroom);
@@ -184,6 +219,12 @@ class ClassroomController extends Controller
         ));
     }
 
+    /**
+     * Exporta el listado de alumnos inscritos con progreso a Excel.
+     *
+     * @param Classroom $classroom Aula autorizada
+     * @return BinaryFileResponse Archivo .xlsx descargable
+     */
     public function exportStudents(Classroom $classroom): BinaryFileResponse
     {
         $this->authorizeClassroomView($classroom);
@@ -206,7 +247,13 @@ class ClassroomController extends Controller
         return Excel::download(new ClassroomStudentsExport($rows), $filename);
     }
 
-    // ── store ─────────────────────────────────────────────────────────────────
+    /**
+     * Crea un aula nueva respetando límites del plan y genera código de invitación.
+     *
+     * @param Request $request Datos del aula (materia, período, grupo, capacidad, umbral)
+     * @return \Illuminate\Http\RedirectResponse Redirección al índice con éxito o errores
+     * @throws \RuntimeException Si se supera el límite del plan o hay duplicado materia/grupo
+     */
     public function store(Request $request)
     {
         $request->validate([
@@ -280,7 +327,12 @@ class ClassroomController extends Controller
             ->with('success', "Aula \"{$request->subject_name}\" (grupo {$request->grupo}) creada exitosamente.");
     }
 
-    // ── generateCode — regenerar código de invitación ────────────────────────
+    /**
+     * Regenera el código de invitación del aula (solo docente dueño).
+     *
+     * @param Classroom $classroom Aula del docente autenticado
+     * @return \Illuminate\Http\RedirectResponse Vuelta atrás con el nuevo código en sesión flash
+     */
     public function generateCode(Classroom $classroom)
     {
         // Solo el docente dueño puede regenerar
@@ -305,7 +357,12 @@ class ClassroomController extends Controller
         ]);
     }
 
-    // ── toggleStatus ──────────────────────────────────────────────────────────
+    /**
+     * Activa o desactiva un aula (docente dueño o administrador).
+     *
+     * @param Classroom $classroom Aula a alternar
+     * @return \Illuminate\Http\RedirectResponse Vuelta atrás con mensaje de éxito
+     */
     public function toggleStatus(Classroom $classroom)
     {
         if (auth()->id() !== $classroom->teacher_id && !auth()->user()->hasRole('Administrator')) {

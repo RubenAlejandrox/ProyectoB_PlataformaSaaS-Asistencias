@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Controlador HTTP del módulo Justification: expone acciones web/API del dominio.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
@@ -15,13 +33,22 @@ use Illuminate\View\View;
 
 class JustificationController extends Controller
 {
+    /**
+     * @param SupabaseStorageService $storage Subida de archivos de justificantes
+     * @param AttendanceProgressService $progressService Recalculo de semáforo al aprobar
+     * @param StudentNotificationService $notificationService Notificaciones al alumno
+     */
     public function __construct(
         private SupabaseStorageService $storage,
         private AttendanceProgressService $progressService,
         private StudentNotificationService $notificationService
     ) {}
 
-    // ── WEB: listado por rol ──────────────────────────────────────────────────
+    /**
+     * Listado web de justificantes filtrado por rol (alumno, docente o administrador).
+     *
+     * @return View Vista justificantes.index
+     */
     public function index(): View
     {
         $user = auth()->user();
@@ -83,7 +110,12 @@ class JustificationController extends Controller
         ]);
     }
 
-    // ── WEB: alumno envía solicitud ───────────────────────────────────────────
+    /**
+     * Envía un justificante desde el formulario web (solo alumnos).
+     *
+     * @param Request $request attendance_id, file y reason opcional
+     * @return RedirectResponse Redirección al índice con éxito o errores
+     */
     public function storeWeb(Request $request): RedirectResponse
     {
         if (!auth()->user()->hasRole('Student')) {
@@ -105,7 +137,13 @@ class JustificationController extends Controller
             ->withErrors(['general' => $payload['message'] ?? 'No se pudo enviar el justificante.']);
     }
 
-    // ── WEB: docente/admin dictamina ──────────────────────────────────────────
+    /**
+     * Aprueba o rechaza un justificante desde la interfaz web.
+     *
+     * @param Request $request status: approved o rejected
+     * @param Justification $justification Justificante pendiente
+     * @return RedirectResponse Redirección al índice con mensaje
+     */
     public function reviewWeb(Request $request, Justification $justification): RedirectResponse
     {
         if (!auth()->user()->hasRole('Teacher') && !auth()->user()->hasRole('Administrator')) {
@@ -127,19 +165,35 @@ class JustificationController extends Controller
             ->with('success', "Justificante {$status} correctamente.");
     }
 
-    // ── API: store ────────────────────────────────────────────────────────────
+    /**
+     * Crea un justificante vía API (misma lógica que storeWeb).
+     *
+     * @param Request $request attendance_id, file y reason opcional
+     * @return JsonResponse Justificante creado o error 403/409/422
+     */
     public function store(Request $request): JsonResponse
     {
         return $this->submitJustification($request);
     }
 
-    // ── API: review ─────────────────────────────────────────────────────────────
+    /**
+     * Dictamina un justificante vía API (aprobado o rechazado).
+     *
+     * @param Request $request status: approved o rejected
+     * @param Justification $justification Justificante a revisar
+     * @return JsonResponse Resultado de la revisión o error 403/422
+     */
     public function review(Request $request, Justification $justification): JsonResponse
     {
         return $this->reviewJustification($request, $justification);
     }
 
-    // ── API: show ───────────────────────────────────────────────────────────────
+    /**
+     * Obtiene el detalle de un justificante si el usuario tiene permiso.
+     *
+     * @param Justification $justification Justificante solicitado
+     * @return JsonResponse Datos del justificante o error 403
+     */
     public function show(Justification $justification): JsonResponse
     {
         $justification->load([

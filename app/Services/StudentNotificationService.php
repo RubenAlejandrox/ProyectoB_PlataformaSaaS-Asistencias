@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Servicio de dominio StudentNotification: encapsula reglas de negocio reutilizables.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Services;
 
 use App\Models\Classroom;
@@ -11,6 +29,16 @@ use App\Models\User;
 
 class StudentNotificationService
 {
+    /**
+     * Crea una notificación in-app cuando cambia el semáforo de asistencia del alumno.
+     *
+     * @param string      $studentId     UUID del alumno
+     * @param string      $classroomId   UUID del aula
+     * @param string      $light         Nuevo estado ('green', 'amber' o 'red')
+     * @param float       $percentage    Porcentaje actual de asistencia
+     * @param string|null $previousLight Estado anterior del semáforo, si se conoce
+     * @return void
+     */
     public function notifyTrafficLightChange(
         string $studentId,
         string $classroomId,
@@ -46,6 +74,12 @@ class StudentNotificationService
         );
     }
 
+    /**
+     * Notifica al alumno cuando su justificante fue aprobado o rechazado.
+     *
+     * @param Justification $justification Justificante con attendance.session.classroom y student
+     * @return void
+     */
     public function notifyJustificationReviewed(Justification $justification): void
     {
         $justification->loadMissing(['attendance.session.classroom', 'student']);
@@ -78,7 +112,10 @@ class StudentNotificationService
     }
 
     /**
-     * Crea recordatorios para sesiones activas de aulas inscritas (idempotente por sesión).
+     * Crea recordatorios para sesiones activas de aulas inscritas (idempotente por sesión, próximos 7 días).
+     *
+     * @param User $user Usuario alumno con rol Student
+     * @return void
      */
     public function syncSessionRemindersForUser(User $user): void
     {

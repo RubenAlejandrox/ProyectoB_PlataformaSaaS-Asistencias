@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Controlador HTTP del módulo Session: expone acciones web/API del dominio.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
@@ -12,7 +30,11 @@ use Illuminate\Support\Facades\DB;
 
 class SessionController extends Controller
 {
-    // ── index ─────────────────────────────────────────────────────────────────
+    /**
+     * Lista las sesiones de las aulas del docente autenticado (API).
+     *
+     * @return JsonResponse Colección de sesiones con aula y claves
+     */
     public function index(): JsonResponse
     {
         $user = auth()->user();
@@ -28,7 +50,12 @@ class SessionController extends Controller
         return response()->json(['data' => $sessions]);
     }
 
-    // ── store ─────────────────────────────────────────────────────────────────
+    /**
+     * Crea e inicia una sesión de asistencia en un aula activa (API).
+     *
+     * @param Request $request classroom_id y session_date
+     * @return JsonResponse Sesión creada (201) o error 403/422
+     */
     public function store(Request $request): JsonResponse
     {
         $request->validate([
@@ -67,7 +94,12 @@ class SessionController extends Controller
         ], 201);
     }
 
-    // ── show ──────────────────────────────────────────────────────────────────
+    /**
+     * Obtiene el detalle de una sesión con aula, claves y asistencias (API).
+     *
+     * @param Session $session Sesión del docente
+     * @return JsonResponse Datos de la sesión
+     */
     public function show(Session $session): JsonResponse
     {
         $this->authorizeTeacherSession($session);
@@ -77,7 +109,13 @@ class SessionController extends Controller
         return response()->json(['data' => $session]);
     }
 
-    // ── update ────────────────────────────────────────────────────────────────
+    /**
+     * Actualiza estado o hora de fin de una sesión (API).
+     *
+     * @param Request $request is_active y ended_at opcionales
+     * @param Session $session Sesión del docente
+     * @return JsonResponse Sesión actualizada
+     */
     public function update(Request $request, Session $session): JsonResponse
     {
         $this->authorizeTeacherSession($session);
@@ -101,7 +139,12 @@ class SessionController extends Controller
         ]);
     }
 
-    // ── close — cerrar sesión y marcar faltas ─────────────────────────────────
+    /**
+     * Cierra la sesión, desactiva claves y marca faltas a no registrados (API).
+     *
+     * @param Session $session Sesión activa del docente
+     * @return JsonResponse Sesión cerrada con asistencias, o error 422
+     */
     public function close(Session $session): JsonResponse
     {
         $this->authorizeTeacherSession($session);
@@ -148,7 +191,12 @@ class SessionController extends Controller
         ]);
     }
 
-    // ── destroy ───────────────────────────────────────────────────────────────
+    /**
+     * Elimina una sesión de clase (API).
+     *
+     * @param Session $session Sesión del docente
+     * @return JsonResponse Mensaje de confirmación
+     */
     public function destroy(Session $session): JsonResponse
     {
         $this->authorizeTeacherSession($session);

@@ -23,7 +23,7 @@
  */
 --}}
 
-<!-- Mobile Menu Toggle -->
+{{-- Mobile Menu Toggle --}}
 <button class="mobile-menu-toggle" id="mobileMenuToggle">
     <div class="hamburger">
         <span></span>
@@ -32,20 +32,20 @@
     </div>
 </button>
 
-<!-- Sidebar Overlay -->
+{{-- Sidebar Overlay --}}
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-<!-- Sidebar -->
+{{-- Sidebar --}}
 <aside class="sidebar" id="sidebar">
 
-    <!-- Brand Header -->
+    {{-- Brand Header --}}
     <div class="sidebar-brand">
         <div class="logo-icon">
             <img src="{{ asset('img/gama-logo.png') }}" alt="G.A.M.A Solutions">
         </div>
     </div>
 
-    <!-- User Info -->
+    {{-- User Info --}}
     <div class="sidebar-user">
         <div class="user-avatar">
             {{ strtoupper(substr(auth()->user()->first_name, 0, 1)) }}{{ strtoupper(substr(auth()->user()->last_name, 0, 1)) }}
@@ -64,10 +64,10 @@
         </div>
     </div>
 
-    <!-- Navigation -->
+    {{-- Navigation --}}
     <nav class="sidebar-nav">
 
-        <!-- Principal — todos los roles -->
+        {{-- Principal — todos los roles --}}
         <div class="nav-section">
             <span class="nav-label">Principal</span>
             <a href="{{ route('dashboard') }}"
@@ -78,7 +78,7 @@
             </a>
         </div>
 
-        <!-- ── ADMINISTRATOR ─────────────────────────────────── -->
+        {{-- ADMINISTRATOR --}}
         @role('Administrator')
         <div class="nav-section">
             <span class="nav-label">Administración</span>
@@ -152,7 +152,7 @@
         </div>
         @endrole
 
-        <!-- ── TEACHER ────────────────────────────────────────── -->
+        {{-- TEACHER --}}
         @role('Teacher')
         <div class="nav-section">
             <span class="nav-label">Mis Aulas</span>
@@ -194,7 +194,7 @@
         </div>
         @endrole
 
-        <!-- ── STUDENT ────────────────────────────────────────── -->
+        {{-- STUDENT --}}
         @role('Student')
         <div class="nav-section">
             <span class="nav-label">Mi Portal</span>
@@ -242,7 +242,7 @@
 
     </nav>
 
-    <!-- Sidebar Footer -->
+    {{-- Sidebar Footer --}}
     <div class="sidebar-footer">
         <a href="{{ route('perfil.index') }}"
            class="nav-item {{ request()->routeIs('perfil.*') ? 'active' : '' }}"

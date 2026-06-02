@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Controlador HTTP del módulo Enrollment: expone acciones web/API del dominio.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Services\EnrollmentService;
@@ -9,11 +27,19 @@ use Illuminate\Http\Request;
 
 class EnrollmentController extends Controller
 {
+    /**
+     * @param EnrollmentService $enrollmentService Servicio de inscripción por código
+     */
     public function __construct(
         private EnrollmentService $enrollmentService
     ) {}
 
-    /** Alumno autenticado se inscribe con código de aula (web). */
+    /**
+     * Inscribe al alumno autenticado en un aula mediante código de invitación (web).
+     *
+     * @param Request $request invitation_code y opcional redirect_to
+     * @return RedirectResponse Redirección con mensaje de éxito o errores
+     */
     public function storeWeb(Request $request): RedirectResponse
     {
         if (!auth()->user()->hasRole('Student')) {
@@ -54,7 +80,12 @@ class EnrollmentController extends Controller
             ->with('success', "Te inscribiste correctamente en {$aula}.");
     }
 
-    /** Alumno autenticado se inscribe con código de aula (API). */
+    /**
+     * Inscribe al alumno autenticado en un aula mediante código de invitación (API).
+     *
+     * @param Request $request invitation_code
+     * @return JsonResponse Inscripción creada con aula, o error 403/422
+     */
     public function store(Request $request): JsonResponse
     {
         if (!auth()->user()->hasRole('Student')) {

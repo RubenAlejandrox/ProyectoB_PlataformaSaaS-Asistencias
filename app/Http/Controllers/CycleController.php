@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Controlador HTTP del módulo Cycle: expone acciones web/API del dominio.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Models\AcademicCycle;
@@ -15,10 +33,19 @@ use Illuminate\View\View;
 
 class CycleController extends Controller
 {
+    /**
+     * @param AttendanceProgressService $progressService Cálculo de aprobados/reprobados al cierre
+     */
     public function __construct(
         private AttendanceProgressService $progressService
     ) {}
 
+    /**
+     * Vista de cierre de ciclo académico con estadísticas del ciclo seleccionado.
+     *
+     * @param Request $request Parámetro opcional cycle (UUID)
+     * @return View Vista ciclo.cierre
+     */
     public function index(Request $request): View
     {
         $user = auth()->user();
@@ -61,6 +88,13 @@ class CycleController extends Controller
         return view('ciclo.cierre', compact('cycles', 'cycle', 'stats'));
     }
 
+    /**
+     * Cierra un ciclo académico tras validar clave, justificantes pendientes e intentos.
+     *
+     * @param Request $request closure_key (clave de cierre)
+     * @param AcademicCycle $cycle Ciclo a cerrar
+     * @return JsonResponse|RedirectResponse Confirmación o error 403/422/423
+     */
     public function close(Request $request, AcademicCycle $cycle): JsonResponse|RedirectResponse
     {
         if (!$this->canManageCycle($cycle)) {

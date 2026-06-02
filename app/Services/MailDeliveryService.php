@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Servicio de dominio MailDelivery: encapsula reglas de negocio reutilizables.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
@@ -8,7 +26,10 @@ use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 class MailDeliveryService
 {
     /**
-     * @throws \RuntimeException
+     * Verifica que el correo esté configurado para envío real (no log/array ni remitente de ejemplo).
+     *
+     * @return void
+     * @throws \RuntimeException Si MAIL_MAILER o MAIL_FROM_ADDRESS no permiten entrega externa
      */
     public function ensureCanDeliver(): void
     {
@@ -31,7 +52,11 @@ class MailDeliveryService
     }
 
     /**
-     * @throws \RuntimeException
+     * Ejecuta el envío de correo tras validar la configuración; encapsula errores SMTP.
+     *
+     * @param callable $callback Función que dispara el Mailable o Mail::send
+     * @return void
+     * @throws \RuntimeException Si la configuración es inválida o falla el transporte SMTP
      */
     public function send(callable $callback): void
     {

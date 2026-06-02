@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Controlador HTTP del módulo Report: expone acciones web/API del dominio.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Mail\AttendanceReportMail;
@@ -16,6 +34,12 @@ use Illuminate\View\View;
 
 class ReportController extends Controller
 {
+    /**
+     * Vista de reportes: selección de aula, mes y vista previa de alumnos en riesgo.
+     *
+     * @param Request $request Parámetros classroom y month (Y-m)
+     * @return View Vista reportes.index
+     */
     public function index(Request $request): View
     {
         $user = auth()->user();
@@ -48,11 +72,21 @@ class ReportController extends Controller
         return view('reportes.index', compact('classrooms', 'classroom', 'month', 'riskPreview', 'mailConfigured'));
     }
 
+    /**
+     * @param ReportGeneratorService $reports Generación de exportaciones Excel
+     * @param MailDeliveryService $mailDelivery Envío de correos con adjuntos
+     */
     public function __construct(
         private ReportGeneratorService $reports,
         private MailDeliveryService $mailDelivery,
     ) {}
 
+    /**
+     * Descarga la matriz de asistencias del aula en Excel.
+     *
+     * @param Classroom $classroom Aula autorizada
+     * @return BinaryFileResponse Archivo .xlsx
+     */
     public function matrix(Classroom $classroom): BinaryFileResponse
     {
         $this->authorizeClassroom($classroom);
@@ -61,6 +95,13 @@ class ReportController extends Controller
         return Excel::download($this->reports->generateMatrix($classroom), $filename);
     }
 
+    /**
+     * Descarga el resumen mensual de asistencias del aula en Excel.
+     *
+     * @param Request $request month en formato Y-m (obligatorio)
+     * @param Classroom $classroom Aula autorizada
+     * @return BinaryFileResponse Archivo .xlsx del mes indicado
+     */
     public function monthly(Request $request, Classroom $classroom): BinaryFileResponse|JsonResponse
     {
         $this->authorizeClassroom($classroom);
@@ -75,6 +116,14 @@ class ReportController extends Controller
         return Excel::download($this->reports->generateMonthly($classroom, $month), $filename);
     }
 
+    /**
+     * Envía un reporte (matriz o mensual) por correo electrónico.
+     *
+     * @param Request $request email, type, month (si mensual), subject y message opcionales
+     * @param Classroom $classroom Aula autorizada
+     * @return JsonResponse|RedirectResponse Confirmación o error 422
+     * @throws \RuntimeException Si falla el envío de correo
+     */
     public function send(Request $request, Classroom $classroom): JsonResponse|RedirectResponse
     {
         $this->authorizeClassroom($classroom);

@@ -1,5 +1,24 @@
 <?php
 
+/**
+ * @descripcion  Autenticación, bloqueo por intentos y recuperación de contraseña sin correo (contacto admin).
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.1.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios      2026-06-02 - Flujo forgot-password y búsqueda de administrador
+ *               2026-06-02 - Incorporación de cabecera de prólogo
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Http\Requests\LoginRequest;
@@ -19,7 +38,12 @@ class AuthController extends Controller
 {
     private const RESET_PASSWORD_CONTACT_MESSAGE = 'Contacta a tu administrador para restablecer tu contraseña.';
 
-    // ── API Login (para tests y app móvil) ───────────────────────────────────
+    /**
+     * Autentica un usuario vía API (Sanctum) con bloqueo por intentos fallidos.
+     *
+     * @param LoginRequest $request Credenciales validadas (email y contraseña)
+     * @return JsonResponse Token de acceso y datos del usuario, o error 401/423
+     */
     public function login(LoginRequest $request): JsonResponse
     {
         $user = User::withoutGlobalScopes()
@@ -67,19 +91,33 @@ class AuthController extends Controller
         ]);
     }
 
-    // ── API Logout ────────────────────────────────────────────────────────────
+    /**
+     * Revoca el token Sanctum actual del usuario autenticado (API).
+     *
+     * @return JsonResponse Mensaje de cierre de sesión exitoso
+     */
     public function logout(): JsonResponse
     {
         auth()->user()->currentAccessToken()->delete();
         return response()->json(['message' => 'Logged out successfully.']);
     }
 
-    // ── WEB Forgot Password (sin correo) ─────────────────────────────────────
+    /**
+     * Muestra el formulario web de recuperación de contraseña (sin envío de correo).
+     *
+     * @return \Illuminate\View\View Vista auth.forgot-password
+     */
     public function showForgot()
     {
         return view('auth.forgot-password');
     }
 
+    /**
+     * Procesa la solicitud de recuperación y muestra contacto del administrador.
+     *
+     * @param Request $request Correo electrónico del usuario
+     * @return \Illuminate\View\View Vista auth.forgot-result con datos de contacto
+     */
     public function processForgot(Request $request)
     {
         $request->validate([
@@ -151,7 +189,12 @@ class AuthController extends Controller
         ]);
     }
 
-    // ── WEB Login (Blade form → sesión + redirección por rol) ────────────────
+    /**
+     * Inicia sesión web con cookie de sesión y redirige al panel según el rol.
+     *
+     * @param Request $request Email y contraseña
+     * @return RedirectResponse Redirección al dashboard o vuelta con errores
+     */
     public function loginWeb(Request $request): RedirectResponse
     {
         $request->validate([
@@ -209,7 +252,12 @@ class AuthController extends Controller
         };
     }
 
-    // ── WEB Register ──────────────────────────────────────────────────────────
+    /**
+     * Registra un docente o alumno con código de invitación e inicia sesión.
+     *
+     * @param Request $request Datos de registro, rol y código opcional
+     * @return RedirectResponse Redirección al dashboard o vuelta con errores de validación
+     */
     public function register(Request $request): RedirectResponse
     {
         $request->merge([
@@ -344,7 +392,12 @@ class AuthController extends Controller
         return redirect()->route('dashboard');
     }
 
-    // ── WEB Logout ────────────────────────────────────────────────────────────
+    /**
+     * Cierra la sesión web, invalida la sesión y regenera el token CSRF.
+     *
+     * @param Request $request Solicitud HTTP actual
+     * @return RedirectResponse Redirección a la ruta de login
+     */
     public function logoutWeb(Request $request): RedirectResponse
     {
         Auth::logout();

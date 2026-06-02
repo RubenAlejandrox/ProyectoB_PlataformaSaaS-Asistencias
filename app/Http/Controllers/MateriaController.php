@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Controlador HTTP del módulo Materia: expone acciones web/API del dominio.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Models\Classroom;
@@ -10,10 +28,20 @@ use Illuminate\View\View;
 
 class MateriaController extends Controller
 {
+    /**
+     * @param AttendanceProgressService $progressService Progreso, calendario y justificantes
+     */
     public function __construct(
         private AttendanceProgressService $progressService
     ) {}
 
+    /**
+     * Vista de detalle de materia para el alumno: progreso, calendario mensual y justificantes.
+     *
+     * @param Request $request Parámetros opcionales year y month
+     * @param Classroom $classroom Aula en la que el alumno está inscrito
+     * @return View Vista materias.show
+     */
     public function show(Request $request, Classroom $classroom): View
     {
         $user = $request->user();

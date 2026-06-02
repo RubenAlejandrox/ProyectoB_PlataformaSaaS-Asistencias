@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Reglas de negocio de suscripciones: una activa por institución, asignación y upgrade Free→PRO.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.1.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Services;
 
 use App\Models\Institution;
@@ -9,6 +27,12 @@ use Illuminate\Support\Facades\DB;
 
 class SubscriptionService
 {
+    /**
+     * Obtiene la suscripción activa vigente de una institución, si existe.
+     *
+     * @param Institution|string $institution Institución o UUID de institución
+     * @return Subscription|null Suscripción con plan cargado, o null
+     */
     public function currentlyActive(Institution|string $institution): ?Subscription
     {
         $institutionId = $institution instanceof Institution
@@ -24,13 +48,25 @@ class SubscriptionService
             ->first();
     }
 
+    /**
+     * Indica si la institución tiene al menos una suscripción activa no vencida.
+     *
+     * @param Institution|string $institution Institución o UUID de institución
+     * @return bool true si hay suscripción activa vigente
+     */
     public function institutionHasActiveSubscription(Institution|string $institution): bool
     {
         return $this->currentlyActive($institution) !== null;
     }
 
     /**
-     * Primera suscripción: institución sin membresía activa.
+     * Asigna la primera suscripción activa a una institución sin membresía vigente.
+     *
+     * @param Institution $institution            Institución beneficiaria
+     * @param Plan        $plan                   Plan a contratar
+     * @param string|null $paypalSubscriptionId   ID de suscripción PayPal, si aplica
+     * @return Subscription Suscripción recién creada en estado active
+     * @throws \InvalidArgumentException Si la institución ya tiene membresía activa
      */
     public function assignInitial(Institution $institution, Plan $plan, ?string $paypalSubscriptionId = null): Subscription
     {
@@ -44,7 +80,13 @@ class SubscriptionService
     }
 
     /**
-     * Cambio de plan (p. ej. Basic → Pro) o renovación del mismo plan al vencer.
+     * Cambia de plan (upgrade), renueva el mismo plan o asigna la inicial si no hay activa.
+     *
+     * @param Institution $institution            Institución beneficiaria
+     * @param Plan        $plan                   Plan destino
+     * @param string|null $paypalSubscriptionId   ID de suscripción PayPal, si aplica
+     * @return Subscription Suscripción activa resultante
+     * @throws \InvalidArgumentException Si se intenta un downgrade o plan no permitido
      */
     public function changeOrRenew(Institution $institution, Plan $plan, ?string $paypalSubscriptionId = null): Subscription
     {
@@ -71,6 +113,13 @@ class SubscriptionService
         });
     }
 
+    /**
+     * Determina si el plan destino es un upgrade respecto al plan actual (por precio).
+     *
+     * @param Plan $current Plan vigente de la institución
+     * @param Plan $target  Plan al que se desea migrar
+     * @return bool true si el precio del destino es mayor
+     */
     public function isPlanUpgrade(Plan $current, Plan $target): bool
     {
         return (float) $target->price > (float) $current->price;

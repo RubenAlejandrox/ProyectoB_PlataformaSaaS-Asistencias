@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Controlador HTTP del módulo Subscription: expone acciones web/API del dominio.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Models\Institution;
@@ -13,11 +31,20 @@ use InvalidArgumentException;
 
 class SubscriptionController extends Controller
 {
+    /**
+     * @param PayPalService $paypal Integración de pagos PayPal
+     * @param SubscriptionService $subscriptions Alta y cambio de membresías
+     */
     public function __construct(
         private PayPalService $paypal,
         private SubscriptionService $subscriptions,
     ) {}
 
+    /**
+     * Panel de membresías: planes, suscripciones e instituciones sin plan activo.
+     *
+     * @return \Illuminate\View\View Vista membresias.index
+     */
     public function index()
     {
         $plans = Plan::withoutGlobalScopes()->active()->get();
@@ -56,6 +83,12 @@ class SubscriptionController extends Controller
         ));
     }
 
+    /**
+     * Inicia checkout PayPal o activa plan gratuito (asignar o cambiar membresía).
+     *
+     * @param Request $request plan_id, institution_id e intent opcionales (assign|change)
+     * @return \Illuminate\Http\RedirectResponse Redirección a PayPal, membresías o errores
+     */
     public function upgrade(Request $request)
     {
         $request->validate([
@@ -92,6 +125,13 @@ class SubscriptionController extends Controller
         return $this->checkoutOrActivate($institution, $plan, assign: false);
     }
 
+    /**
+     * Callback de PayPal tras pago exitoso: captura orden y activa suscripción.
+     *
+     * @param Request $request token (order ID) en query string
+     * @return \Illuminate\Http\RedirectResponse Redirección a membresías con éxito o error
+     * @throws InvalidArgumentException Si la asignación o renovación falla en dominio
+     */
     public function paypalSuccess(Request $request)
     {
         $orderId       = $request->get('token');
@@ -143,6 +183,11 @@ class SubscriptionController extends Controller
             ->with('success', "Plan {$plan->name} activado para {$institution->name}.");
     }
 
+    /**
+     * Callback cuando el usuario cancela el pago en PayPal.
+     *
+     * @return \Illuminate\Http\RedirectResponse Redirección a membresías con aviso informativo
+     */
     public function paypalCancel()
     {
         session()->forget(['pending_plan_id', 'pending_institution_id', 'pending_assign']);

@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Controlador HTTP del módulo Institution: expone acciones web/API del dominio.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Models\Institution;
@@ -10,11 +28,18 @@ use Illuminate\Support\Str;
 
 class InstitutionController extends Controller
 {
+    /**
+     * @param SupabaseStorageService $storage Almacenamiento de logos en Supabase
+     */
     public function __construct(
         private SupabaseStorageService $storage
     ) {}
 
-    // ── index ─────────────────────────────────────────────────────────────────
+    /**
+     * Lista instituciones paginadas con estadísticas (vista web o JSON).
+     *
+     * @return \Illuminate\View\View|\Illuminate\Http\JsonResponse Vista instituciones.index o JSON paginado
+     */
     public function index()
     {
         $institutions = Institution::withoutGlobalScopes()
@@ -36,7 +61,12 @@ class InstitutionController extends Controller
         return view('instituciones.index', compact('institutions', 'stats'));
     }
 
-    // ── store ─────────────────────────────────────────────────────────────────
+    /**
+     * Crea una institución con logo opcional en Supabase Storage.
+     *
+     * @param Request $request name, logo opcional e is_active
+     * @return \Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse Redirección o JSON 201
+     */
     public function store(Request $request)
     {
         $request->validate([
@@ -75,7 +105,13 @@ class InstitutionController extends Controller
         return back()->with('success', "Institución \"{$request->name}\" creada exitosamente.");
     }
 
-    // ── update ────────────────────────────────────────────────────────────────
+    /**
+     * Actualiza nombre y logo de una institución existente.
+     *
+     * @param Request $request name y logo opcional
+     * @param Institution $institution Institución a modificar
+     * @return \Illuminate\Http\RedirectResponse Vuelta atrás con mensaje de éxito
+     */
     public function update(Request $request, Institution $institution)
     {
         $request->validate([
@@ -119,7 +155,12 @@ class InstitutionController extends Controller
         return back()->with('success', "Institución \"{$request->name}\" actualizada.");
     }
 
-    // ── toggleStatus ──────────────────────────────────────────────────────────
+    /**
+     * Activa o desactiva una institución (bloquea si tiene suscripción activa).
+     *
+     * @param Institution $institution Institución objetivo
+     * @return \Illuminate\Http\RedirectResponse Vuelta atrás con éxito o error
+     */
     public function toggleStatus(Institution $institution)
     {
         if ($institution->is_active) {
@@ -143,7 +184,13 @@ class InstitutionController extends Controller
         return back()->with('success', $msg);
     }
 
-    // ── generateCode — código de invitación por institución y rol ────────────
+    /**
+     * Genera un código de invitación institucional para docente o alumno.
+     *
+     * @param Request $request role: Teacher o Student
+     * @param Institution $institution Institución emisora del código
+     * @return \Illuminate\Http\RedirectResponse Vuelta atrás con datos del código generado
+     */
     public function generateCode(Request $request, Institution $institution)
     {
         $request->validate([

@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Servicio de dominio ReportGenerator: encapsula reglas de negocio reutilizables.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Services;
 
 use App\Exports\AttendanceMatrixExport;
@@ -10,6 +28,12 @@ use Carbon\Carbon;
 
 class ReportGeneratorService
 {
+    /**
+     * Genera la exportación Excel de matriz de asistencia por sesión para un aula.
+     *
+     * @param Classroom $classroom Aula con sesiones e inscripciones activas
+     * @return AttendanceMatrixExport Export Maatwebsite con encabezados y filas de la matriz
+     */
     public function generateMatrix(Classroom $classroom): AttendanceMatrixExport
     {
         $payload = $this->buildMatrixPayload($classroom);
@@ -17,6 +41,13 @@ class ReportGeneratorService
         return new AttendanceMatrixExport($payload['headings'], $payload['rows']);
     }
 
+    /**
+     * Genera la exportación Excel de resumen mensual de asistencia para un aula.
+     *
+     * @param Classroom $classroom Aula a reportar
+     * @param string    $month     Mes en formato Y-m (ej. 2026-05)
+     * @return MonthlySummaryExport Export con totales A/F/J y porcentaje del mes
+     */
     public function generateMonthly(Classroom $classroom, string $month): MonthlySummaryExport
     {
         $payload = $this->buildMonthlyPayload($classroom, $month);
@@ -24,6 +55,12 @@ class ReportGeneratorService
         return new MonthlySummaryExport($payload['headings'], $payload['rows']);
     }
 
+    /**
+     * Construye encabezados y filas de la matriz de asistencia (A/F/J por sesión).
+     *
+     * @param Classroom $classroom Aula con sesiones ordenadas por fecha
+     * @return array{headings: array<int, string>, rows: array<int, array<int, string|int|float>>}
+     */
     public function buildMatrixPayload(Classroom $classroom): array
     {
         $sessions = $classroom->sessions()
@@ -85,6 +122,13 @@ class ReportGeneratorService
         return compact('headings', 'rows');
     }
 
+    /**
+     * Construye encabezados y filas del resumen mensual de asistencia por alumno.
+     *
+     * @param Classroom $classroom Aula a reportar
+     * @param string    $month     Mes en formato Y-m
+     * @return array{headings: array<int, string>, rows: array<int, array<int, string|int|float>>}
+     */
     public function buildMonthlyPayload(Classroom $classroom, string $month): array
     {
         $monthDate = Carbon::createFromFormat('Y-m', $month)->startOfMonth();

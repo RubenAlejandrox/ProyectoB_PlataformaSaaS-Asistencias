@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Controlador HTTP del módulo Profile: expone acciones web/API del dominio.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use Illuminate\Http\RedirectResponse;
@@ -10,6 +28,11 @@ use Illuminate\View\View;
 
 class ProfileController extends Controller
 {
+    /**
+     * Muestra el perfil del usuario autenticado.
+     *
+     * @return View Vista perfil.index
+     */
     public function index(): View
     {
         return view('perfil.index', [
@@ -17,6 +40,12 @@ class ProfileController extends Controller
         ]);
     }
 
+    /**
+     * Actualiza nombre y correo del perfil del usuario autenticado.
+     *
+     * @param Request $request first_name, last_name y email
+     * @return RedirectResponse Vuelta atrás con mensaje de éxito
+     */
     public function update(Request $request): RedirectResponse
     {
         $user = $request->user();
@@ -39,6 +68,12 @@ class ProfileController extends Controller
         return back()->with('success', 'Datos actualizados correctamente.');
     }
 
+    /**
+     * Cambia la contraseña validando la contraseña actual.
+     *
+     * @param Request $request current_password, password y password_confirmation
+     * @return RedirectResponse Vuelta atrás con éxito o error en current_password
+     */
     public function updatePassword(Request $request): RedirectResponse
     {
         $request->validate([

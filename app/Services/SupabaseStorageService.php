@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Servicio de dominio SupabaseStorage: encapsula reglas de negocio reutilizables.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Services;
 
 use Illuminate\Http\UploadedFile;
@@ -22,22 +40,42 @@ class SupabaseStorageService
 
     private ?string $lastError = null;
 
+    /**
+     * Carga URL y service key de Supabase desde la configuración de la aplicación.
+     *
+     * @return void
+     */
     public function __construct()
     {
         $this->url = rtrim((string) config('services.supabase.url'), '/');
         $this->key = (string) config('services.supabase.service_key');
     }
 
+    /**
+     * Devuelve el último mensaje de error registrado tras upload o validación.
+     *
+     * @return string|null Mensaje en español o null si no hubo error reciente
+     */
     public function getLastError(): ?string
     {
         return $this->lastError;
     }
 
+    /**
+     * Indica si SUPABASE_URL y SUPABASE_SERVICE_KEY están definidos.
+     *
+     * @return bool true si ambos valores de configuración son no vacíos
+     */
     public function isConfigured(): bool
     {
         return $this->url !== '' && $this->key !== '';
     }
 
+    /**
+     * Nombre del bucket de justificantes según config o valor por defecto legacy.
+     *
+     * @return string Nombre del bucket en Supabase Storage
+     */
     public function justificationsBucket(): string
     {
         $bucket = config('services.supabase.buckets.justifications');
@@ -45,6 +83,11 @@ class SupabaseStorageService
         return ($bucket !== null && $bucket !== '') ? (string) $bucket : 'justificantes-adjuntos';
     }
 
+    /**
+     * Nombre del bucket de logos institucionales según config o valor por defecto.
+     *
+     * @return string Nombre del bucket en Supabase Storage
+     */
     public function institutionLogosBucket(): string
     {
         $bucket = config('services.supabase.buckets.institution_logos');
@@ -52,6 +95,13 @@ class SupabaseStorageService
         return ($bucket !== null && $bucket !== '') ? (string) $bucket : 'institution-logos';
     }
 
+    /**
+     * Valida que el MIME o extensión del archivo esté permitido para el bucket indicado.
+     *
+     * @param UploadedFile $file   Archivo subido por el usuario
+     * @param string       $bucket Nombre del bucket (debe existir en ALLOWED_MIMES)
+     * @return bool true si el tipo es aceptado para ese bucket
+     */
     public function isAllowedMime(UploadedFile $file, string $bucket): bool
     {
         $allowed = self::ALLOWED_MIMES[$bucket] ?? [];
@@ -74,6 +124,14 @@ class SupabaseStorageService
         return $this->extensionMatchesAllowed($file, $allowed);
     }
 
+    /**
+     * Sube un archivo al bucket de Supabase y devuelve la URL pública del objeto.
+     *
+     * @param UploadedFile $file   Archivo a subir
+     * @param string       $bucket Nombre del bucket destino
+     * @param string       $folder Prefijo de carpeta opcional dentro del bucket
+     * @return string|null URL pública del objeto subido, o null si falla (ver getLastError)
+     */
     public function upload(UploadedFile $file, string $bucket, string $folder = ''): ?string
     {
         $this->lastError = null;
@@ -131,6 +189,13 @@ class SupabaseStorageService
         return null;
     }
 
+    /**
+     * Elimina un objeto del bucket a partir de su URL pública.
+     *
+     * @param string $bucket Nombre del bucket
+     * @param string $url    URL pública devuelta por upload o getPublicUrl
+     * @return bool true si la API de Supabase respondió con éxito
+     */
     public function delete(string $bucket, string $url): bool
     {
         if (! $this->isConfigured()) {
@@ -149,6 +214,13 @@ class SupabaseStorageService
         return $response->successful();
     }
 
+    /**
+     * Construye la URL pública de un objeto sin subirlo (ruta relativa dentro del bucket).
+     *
+     * @param string $bucket Nombre del bucket
+     * @param string $path   Ruta del objeto dentro del bucket
+     * @return string URL pública codificada
+     */
     public function getPublicUrl(string $bucket, string $path): string
     {
         return $this->publicObjectUrl($bucket, $path);

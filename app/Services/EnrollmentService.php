@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Servicio de dominio Enrollment: encapsula reglas de negocio reutilizables.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Services;
 
 use App\Models\Classroom;
@@ -11,10 +29,12 @@ use Illuminate\Support\Facades\DB;
 class EnrollmentService
 {
     /**
-     * Inscribe a un alumno en el aula del código de invitación.
-     * El código de aula es reutilizable hasta su expiración.
+     * Inscribe a un alumno en el aula del código de invitación (reutilizable hasta su expiración).
      *
-     * @throws \RuntimeException
+     * @param InvitationCode $invitationCode Código de invitación válido con aula asociada
+     * @param User           $student        Usuario con rol Student
+     * @return Enrollment Inscripción creada o reactivada
+     * @throws \RuntimeException Si el rol, código, aula o capacidad no permiten la inscripción
      */
     public function enrollFromInvitationCode(InvitationCode $invitationCode, User $student): Enrollment
     {
@@ -71,6 +91,12 @@ class EnrollmentService
         });
     }
 
+    /**
+     * Busca un código de invitación vigente (no expirado) por su valor.
+     *
+     * @param string $code Código ingresado por el alumno (se normaliza a mayúsculas)
+     * @return InvitationCode|null Código con classroom cargado, o null si no existe o expiró
+     */
     public function findValidInvitationCode(string $code): ?InvitationCode
     {
         return InvitationCode::withoutGlobalScopes()

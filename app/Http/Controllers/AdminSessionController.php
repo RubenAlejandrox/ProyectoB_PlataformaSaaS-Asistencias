@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Controlador HTTP del módulo AdminSession: expone acciones web/API del dominio.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Models\Classroom;
@@ -12,6 +30,12 @@ use Illuminate\View\View;
 
 class AdminSessionController extends Controller
 {
+    /**
+     * Listado administrativo de sesiones con filtros, estadísticas y sesiones activas.
+     *
+     * @param Request $request Filtros: classroom_id, status, from_date, to_date
+     * @return View Vista admin.sesiones
+     */
     public function index(Request $request): View
     {
         abort_unless(auth()->user()->hasRole('Administrator'), 403);
@@ -69,6 +93,12 @@ class AdminSessionController extends Controller
         return view('admin.sesiones', compact('sessions', 'classrooms', 'stats', 'activeSessions'));
     }
 
+    /**
+     * Genera una clave de asistencia de 30 minutos para una sesión activa (admin).
+     *
+     * @param Session $session Sesión de clase activa
+     * @return RedirectResponse Vuelta atrás con datos de la clave o error
+     */
     public function generateAttendanceKey(Session $session): RedirectResponse
     {
         abort_unless(auth()->user()->hasRole('Administrator'), 403);

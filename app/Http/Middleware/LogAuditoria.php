@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Middleware HTTP LogAuditoria: filtra o enriquece solicitudes entrantes.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Http\Middleware;
 
 use App\Models\AuditLog;
@@ -19,6 +37,13 @@ class LogAuditoria
         'api/register',
     ];
 
+    /**
+     * Registra en bitácora las operaciones POST/PUT/PATCH/DELETE exitosas del usuario autenticado.
+     *
+     * @param Request $request Solicitud HTTP entrante
+     * @param Closure $next Siguiente middleware o controlador
+     * @return \Symfony\Component\HttpFoundation\Response Respuesta HTTP (con registro de auditoría si aplica)
+     */
     public function handle(Request $request, Closure $next)
     {
         $response = $next($request);

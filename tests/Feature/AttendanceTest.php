@@ -316,6 +316,19 @@ class AttendanceTest extends TestCase
     }
 
     #[Test]
+    public function session_roster_poll_does_not_include_progress_by_default(): void
+    {
+        $response = $this->actingAs($this->teacher)
+            ->getJson(route('asistencias.docente.roster', $this->session))
+            ->assertOk();
+
+        $students = $response->json('data.students');
+        $this->assertNotEmpty($students);
+        $this->assertNull($students[0]['pct']);
+        $this->assertNull($students[0]['light']);
+    }
+
+    #[Test]
     public function stop_key_marks_absent_for_all_unregistered_students(): void
     {
         Attendance::withoutGlobalScopes()

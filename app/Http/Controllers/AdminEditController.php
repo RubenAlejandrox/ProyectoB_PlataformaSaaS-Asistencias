@@ -1,5 +1,24 @@
 <?php
 
+/**
+ * @descripcion  Edición administrativa transaccional y restablecimiento de contraseñas globales.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.1.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios      2026-06-02 - Reset de contraseña sin restricción por institución
+ *               2026-06-02 - Incorporación de cabecera de prólogo
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Models\AcademicCycle;
@@ -21,10 +40,19 @@ class AdminEditController extends Controller
 {
     private const DEFAULT_RESET_PASSWORD = 'GamaSolu1234$+';
 
+    /**
+     * @param AttendanceProgressService $progressService Servicio de progreso tras correcciones
+     */
     public function __construct(
         private AttendanceProgressService $progressService
     ) {}
 
+    /**
+     * Panel de edición administrativa: asistencias, inscripciones, sesiones y usuarios.
+     *
+     * @param Request $request Filtros opcionales role y q (búsqueda)
+     * @return View Vista admin.edicion
+     */
     public function index(Request $request): View
     {
         abort_unless(auth()->user()->hasRole('Administrator'), 403);
@@ -97,6 +125,13 @@ class AdminEditController extends Controller
         ));
     }
 
+    /**
+     * Corrige el estado de una asistencia con motivo y registro en bitácora.
+     *
+     * @param Request $request status, reason y opcionalmente attendance_id
+     * @param Attendance|null $attendance Registro de asistencia (ruta o por ID en body)
+     * @return JsonResponse|RedirectResponse Confirmación o error de validación
+     */
     public function correctAttendance(Request $request, ?Attendance $attendance = null): JsonResponse|RedirectResponse
     {
         abort_unless(auth()->user()->hasRole('Administrator'), 403);
@@ -134,6 +169,13 @@ class AdminEditController extends Controller
         return $this->okResponse($request, 'Asistencia corregida correctamente.');
     }
 
+    /**
+     * Da de baja a un alumno de un aula (desactiva la inscripción).
+     *
+     * @param Request $request Motivo obligatorio (reason)
+     * @param Enrollment $enrollment Inscripción activa
+     * @return JsonResponse|RedirectResponse Confirmación o error 422
+     */
     public function dropStudent(Request $request, Enrollment $enrollment): JsonResponse|RedirectResponse
     {
         abort_unless(auth()->user()->hasRole('Administrator'), 403);
@@ -162,6 +204,13 @@ class AdminEditController extends Controller
         return $this->okResponse($request, 'Alumno dado de baja correctamente.');
     }
 
+    /**
+     * Elimina una sesión de clase y actualiza semáforos de los alumnos afectados.
+     *
+     * @param Request $request Motivo obligatorio (reason)
+     * @param Session $session Sesión a eliminar
+     * @return JsonResponse|RedirectResponse Confirmación de eliminación
+     */
     public function deleteSession(Request $request, Session $session): JsonResponse|RedirectResponse
     {
         abort_unless(auth()->user()->hasRole('Administrator'), 403);
@@ -207,6 +256,13 @@ class AdminEditController extends Controller
         return $this->okResponse($request, 'Sesión eliminada correctamente.');
     }
 
+    /**
+     * Restablece la contraseña de un usuario a la temporal del sistema y desbloquea la cuenta.
+     *
+     * @param Request $request Solicitud HTTP (JSON o web)
+     * @param User $user Usuario objetivo (cualquier institución)
+     * @return JsonResponse|RedirectResponse Mensaje con contraseña temporal aplicada
+     */
     public function resetUserPassword(Request $request, User $user): JsonResponse|RedirectResponse
     {
         abort_unless(auth()->user()->hasRole('Administrator'), 403);

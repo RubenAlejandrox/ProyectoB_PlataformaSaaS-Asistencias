@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * @descripcion  Controlador HTTP del módulo Attendance: expone acciones web/API del dominio.
+ *
+ * @autor          Rubén Alejandro Nolasco Ruiz
+ * @autorizador    Rubén Alejandro Nolasco Ruiz
+ * @prueba         Diego Miguel Hernandez Fabela
+ * @mantenimiento  Ghael Garcia Manjarrez
+ *
+ * @version      1.0.0
+ * @creado       2026-06-02
+ * @modificado   2026-06-02
+ *
+ * @cambios       *               2026-06-02 - Incorporación de cabecera de prólogo conforme estándar
+ */
+
+
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Events\AttendanceRegistered;
@@ -12,11 +30,19 @@ use Illuminate\Http\Request;
 
 class AttendanceController extends Controller
 {
+    /**
+     * @param AttendanceProgressService $progressService Servicio de progreso y semáforo de asistencia
+     */
     public function __construct(
         private AttendanceProgressService $progressService
     ) {}
 
-    // ── register — alumno registra asistencia con clave de sesión ─────────────
+    /**
+     * Registra la asistencia del alumno autenticado mediante clave de sesión (API).
+     *
+     * @param Request $request Clave de acceso de 8 caracteres (access_key)
+     * @return JsonResponse Asistencia creada con progreso, o error 403/409/422
+     */
     public function register(Request $request): JsonResponse
     {
         $request->validate([
@@ -91,7 +117,12 @@ class AttendanceController extends Controller
         ], 201);
     }
 
-    // ── progress — progreso del alumno en un aula ─────────────────────────────
+    /**
+     * Obtiene el progreso de asistencia del alumno autenticado en un aula (API).
+     *
+     * @param string $classroomId UUID del aula
+     * @return JsonResponse Porcentaje, semáforo y contadores, o error 403
+     */
     public function progress(string $classroomId): JsonResponse
     {
         $studentId = auth()->user()->id;
@@ -107,7 +138,12 @@ class AttendanceController extends Controller
         );
     }
 
-    // ── portal — historial de asistencias del alumno en un aula ───────────────
+    /**
+     * Devuelve historial de asistencias y progreso del alumno en un aula (API).
+     *
+     * @param string $classroomId UUID del aula
+     * @return JsonResponse Progreso y listado de asistencias, o error 403
+     */
     public function portal(string $classroomId): JsonResponse
     {
         $studentId = auth()->user()->id;
