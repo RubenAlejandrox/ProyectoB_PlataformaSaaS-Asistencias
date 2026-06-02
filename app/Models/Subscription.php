@@ -83,6 +83,6 @@ class Subscription extends Model
      */
     public function getDaysRemainingAttribute(): int
     {
-        return max(0, now()->diffInDays($this->end_date, false));
+        return (int) max(0, now()->diffInDays($this->end_date, false));
     }
 }

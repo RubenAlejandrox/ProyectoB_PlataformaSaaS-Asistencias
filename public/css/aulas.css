@@ -721,6 +721,62 @@ Paleta Institucional Azul Corporativo
     color: #DC3545;
 }
 
+/* Toasts en tiempo real (solo front) */
+.toast-stack {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: min(360px, calc(100vw - 2rem));
+    pointer-events: none;
+}
+
+.toast-item {
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+    border-left: 4px solid var(--deep-blue);
+    font-size: 0.875rem;
+    color: #1f2937;
+    animation: aulasToastIn 0.25s ease;
+}
+
+.toast-item--success { border-left-color: #28A745; }
+.toast-item--warning { border-left-color: #F28B2C; }
+.toast-item--error   { border-left-color: #DC3545; }
+.toast-item--info    { border-left-color: #134474; }
+
+.toast-close {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: #9ca3af;
+    cursor: pointer;
+    padding: 0;
+}
+
+.enrollment-count--pulse {
+    animation: enrollmentCountPulse 0.85s ease;
+}
+
+@keyframes aulasToastIn {
+    from { opacity: 0; transform: translateX(12px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes enrollmentCountPulse {
+    0%   { color: #F28B2C; transform: scale(1.08); }
+    100% { color: inherit; transform: scale(1); }
+}
+
 /* ========================================
    Responsive
 ======================================== */

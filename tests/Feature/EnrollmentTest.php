@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Events\StudentEnrolled;
 use App\Models\Classroom;
 use App\Models\Enrollment;
 use App\Models\Institution;
@@ -10,6 +11,7 @@ use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -144,6 +146,32 @@ class EnrollmentTest extends TestCase
         ]);
 
         $this->assertFalse($code2->fresh()->is_used);
+    }
+
+    #[Test]
+    public function enrollment_dispatches_student_enrolled_event(): void
+    {
+        Event::fake([StudentEnrolled::class]);
+
+        $student = User::create([
+            'institution_id' => $this->institution->id,
+            'first_name'     => 'Ana',
+            'last_name'      => 'Realtime',
+            'email'          => 'ana-rt@test.com',
+            'password_hash'  => bcrypt('password'),
+            'is_active'      => true,
+        ]);
+        $student->assignRole('Student');
+
+        $this->actingAs($student)->post(route('enrollments.store'), [
+            'invitation_code' => $this->invitationCode->code,
+        ])->assertRedirect();
+
+        Event::assertDispatched(StudentEnrolled::class, function (StudentEnrolled $event) {
+            return $event->classroomId === $this->classroom->id
+                && $event->enrollmentsCount === 1
+                && str_contains($event->studentName, 'Ana');
+        });
     }
 
     #[Test]

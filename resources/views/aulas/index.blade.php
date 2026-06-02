@@ -161,7 +161,7 @@
         <div class="kpi-card">
             <div class="kpi-icon"><i class="fas fa-users"></i></div>
             <div class="kpi-content">
-                <span class="kpi-value">{{ $stats['total_students'] }}</span>
+                <span class="kpi-value" id="kpiTotalAlumnos">{{ $stats['total_students'] }}</span>
                 <span class="kpi-label">Alumnos totales</span>
             </div>
         </div>
@@ -242,7 +242,9 @@
                     <div class="aula-stats">
                         <div class="aula-stat">
                             <i class="fas fa-users"></i>
-                            <span>{{ $classroom->enrollments_count }} / {{ $classroom->max_capacity }}</span>
+                            <span class="enrollment-count"
+                                  data-classroom-id="{{ $classroom->id }}"
+                                  data-max="{{ $classroom->max_capacity }}">{{ $classroom->enrollments_count }} / {{ $classroom->max_capacity }}</span>
                         </div>
                         <div class="aula-stat">
                             <i class="fas fa-calendar-check"></i>
@@ -381,7 +383,7 @@
                                         ->sortByDesc('created_at')
                                         ->first();
                                 @endphp
-                                <tr data-tab="{{ $tabStatus }}">
+                                <tr data-tab="{{ $tabStatus }}" data-classroom-id="{{ $classroom->id }}">
                                     <td>
                                         <div class="aula-cell">
                                             <div class="aula-dot dot-{{ $classroom->is_active ? 'a' : 'closed' }}"></div>
@@ -393,7 +395,11 @@
                                     </td>
                                     <td>{{ $teacher?->first_name }} {{ $teacher?->last_name }}</td>
                                     <td>{{ $classroom->period }}</td>
-                                    <td>{{ $classroom->enrollments_count }} / {{ $classroom->max_capacity }}</td>
+                                    <td>
+                                        <span class="enrollment-count"
+                                              data-classroom-id="{{ $classroom->id }}"
+                                              data-max="{{ $classroom->max_capacity }}">{{ $classroom->enrollments_count }} / {{ $classroom->max_capacity }}</span>
+                                    </td>
                                     <td>{{ $classroom->sessions_count }}</td>
                                     <td>{{ $classroom->min_attendance_pct }}%</td>
                                     <td>
@@ -531,7 +537,17 @@
 </div>
 @endunless
 
+@unless($isStudent)
+<div class="toast-stack" id="aulasToastStack" aria-live="polite" aria-atomic="true"></div>
+@endunless
+
 @push('scripts')
+@unless($isStudent)
+@if(config('broadcasting.connections.reverb.key'))
+<script src="https://js.pusher.com/8.4.0-rc2/pusher.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/laravel-echo@1.19.0/dist/echo.iife.js"></script>
+@endif
+@endunless
 <script>
     let pendingRegenerateClassroomId = null;
     const promptedExpiredCodes = new Set();
@@ -673,6 +689,83 @@
     askToRegenerateIfExpired();
     setInterval(updateCodeCountdowns, 30000);
     setInterval(askToRegenerateIfExpired, 30000);
+
+    initEnrollmentRealtime();
+    }
+
+    const aulasClassroomIds = @json($isStudent ? [] : $classrooms->pluck('id')->values());
+    const aulasCsrf = @json(csrf_token());
+
+    function notifyAulasToast(type, message, icon = 'fa-info-circle') {
+        const stack = document.getElementById('aulasToastStack');
+        if (!stack) return;
+        const el = document.createElement('div');
+        el.className = `toast-item toast-item--${type}`;
+        el.innerHTML = `<i class="fas ${icon}"></i><span></span><button type="button" class="toast-close" aria-label="Cerrar"><i class="fas fa-times"></i></button>`;
+        el.querySelector('span').textContent = message;
+        el.querySelector('.toast-close').addEventListener('click', () => el.remove());
+        stack.appendChild(el);
+        setTimeout(() => el.remove(), 6000);
+    }
+
+    function actualizarConteoAlumnos(classroomId, count, max) {
+        document.querySelectorAll(`.enrollment-count[data-classroom-id="${classroomId}"]`).forEach(el => {
+            el.textContent = `${count} / ${max}`;
+            el.classList.remove('enrollment-count--pulse');
+            void el.offsetWidth;
+            el.classList.add('enrollment-count--pulse');
+        });
+        const kpi = document.getElementById('kpiTotalAlumnos');
+        if (kpi) {
+            const seen = new Set();
+            let total = 0;
+            document.querySelectorAll('.enrollment-count[data-classroom-id]').forEach(el => {
+                const id = el.dataset.classroomId;
+                if (!id || seen.has(id)) return;
+                seen.add(id);
+                const m = el.textContent.match(/^(\d+)\s*\//);
+                if (m) total += parseInt(m[1], 10);
+            });
+            kpi.textContent = String(total);
+            kpi.classList.remove('enrollment-count--pulse');
+            void kpi.offsetWidth;
+            kpi.classList.add('enrollment-count--pulse');
+        }
+    }
+
+    function onStudentEnrolled(e) {
+        const count = e.enrollments_count ?? 0;
+        const max = e.max_capacity ?? 0;
+        actualizarConteoAlumnos(e.classroom_id, count, max);
+        const nombre = e.student_name || 'Un alumno';
+        const aula = e.classroom_name || 'el aula';
+        notifyAulasToast('success', `${nombre} se inscribió en ${aula}.`, 'fa-user-plus');
+    }
+
+    function initEnrollmentRealtime() {
+        @if(!$isStudent && config('broadcasting.connections.reverb.key'))
+        const EchoCtor = (typeof window.Echo === 'function')
+            ? window.Echo
+            : (window.Echo?.default && typeof window.Echo.default === 'function' ? window.Echo.default : null);
+        if (!EchoCtor || !aulasClassroomIds.length) return;
+
+        const echoClient = new EchoCtor({
+            broadcaster: 'reverb',
+            key: @json(config('broadcasting.connections.reverb.key')),
+            wsHost: @json(config('broadcasting.connections.reverb.options.host')),
+            wsPort: {{ (int) config('broadcasting.connections.reverb.options.port', 8080) }},
+            wssPort: {{ (int) config('broadcasting.connections.reverb.options.port', 443) }},
+            forceTLS: {{ config('broadcasting.connections.reverb.options.useTLS') ? 'true' : 'false' }},
+            enabledTransports: ['ws', 'wss'],
+            authEndpoint: '/broadcasting/auth',
+            auth: { headers: { 'X-CSRF-TOKEN': aulasCsrf } },
+        });
+
+        aulasClassroomIds.forEach((classroomId) => {
+            echoClient.private(`classroom.${classroomId}`)
+                .listen('.student.enrolled', onStudentEnrolled);
+        });
+        @endif
     }
 </script>
 @endpush

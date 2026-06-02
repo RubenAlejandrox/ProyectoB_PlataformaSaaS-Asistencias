@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Events\StudentEnrolled;
 use App\Models\Classroom;
 use App\Models\Enrollment;
 use App\Models\InvitationCode;
@@ -86,6 +87,19 @@ class EnrollmentService
             if ($student->institution_id !== $classroom->institution_id) {
                 $student->update(['institution_id' => $classroom->institution_id]);
             }
+
+            $enrollmentsCount = Enrollment::withoutGlobalScopes()
+                ->where('classroom_id', $classroom->id)
+                ->where('is_active', true)
+                ->count();
+
+            event(new StudentEnrolled(
+                classroomId: $classroom->id,
+                classroomName: $classroom->subject_name.' — Grupo '.$classroom->grupo,
+                studentName: trim($student->first_name.' '.$student->last_name),
+                enrollmentsCount: $enrollmentsCount,
+                maxCapacity: (int) $classroom->max_capacity,
+            ));
 
             return $enrollment;
         });

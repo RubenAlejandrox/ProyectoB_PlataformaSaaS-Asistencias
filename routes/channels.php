@@ -33,3 +33,23 @@ Broadcast::channel('attendance.{classroomId}', function ($user, string $classroo
 Broadcast::channel('progress.{studentId}', function ($user, string $studentId) {
     return (string) $user->id === (string) $studentId;
 });
+
+Broadcast::channel('classroom.{classroomId}', function ($user, string $classroomId) {
+    $classroom = Classroom::withoutGlobalScopes()->find($classroomId);
+
+    if (! $classroom) {
+        return false;
+    }
+
+    if ($user->hasRole('Administrator')
+        && (string) $user->institution_id === (string) $classroom->institution_id) {
+        return true;
+    }
+
+    if ($user->hasRole('Teacher')
+        && (string) $classroom->teacher_id === (string) $user->id) {
+        return true;
+    }
+
+    return false;
+});
