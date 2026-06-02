@@ -483,6 +483,105 @@ Paleta Institucional Azul Corporativo
 }
 
 /* ========================================
+   Pagination (compacta para /admin/edicion)
+======================================== */
+.pagination-compact-wrapper nav[role="navigation"] {
+    width: 100%;
+}
+
+.pagination-compact-wrapper nav[role="navigation"] > div:first-child {
+    display: none; /* "Showing x to y..." */
+}
+
+.pagination-compact-wrapper nav[role="navigation"] > div:last-child {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+.pagination-compact-wrapper .relative.z-0.inline-flex {
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.pagination-compact-wrapper .relative.inline-flex.items-center {
+    min-width: 34px;
+    height: 34px;
+    padding: 0 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--mist-blue);
+    background: #fff;
+    color: var(--deep-blue);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    box-shadow: none !important;
+}
+
+.pagination-compact-wrapper span[aria-current="page"] .relative.inline-flex.items-center {
+    background: var(--deep-blue);
+    border-color: var(--deep-blue);
+    color: #fff;
+}
+
+.pagination-compact-wrapper a.relative.inline-flex.items-center:hover {
+    border-color: var(--corp-orange);
+    color: var(--corp-orange);
+}
+
+.pagination-summary {
+    font-size: 13px;
+    color: var(--soft-steel);
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.gama-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.gama-page-btn {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--mist-blue);
+    background: #fff;
+    color: var(--deep-blue);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font-main);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.gama-page-btn:hover {
+    border-color: var(--corp-orange);
+    color: var(--corp-orange);
+    transform: translateY(-1px);
+}
+
+.gama-page-btn--active {
+    background: var(--deep-blue);
+    border-color: var(--deep-blue);
+    color: #fff;
+}
+
+.gama-page-btn--disabled {
+    background: #f8fafc;
+    color: #9ca3af;
+    border-color: #e5e7eb;
+    cursor: not-allowed;
+}
+
+/* ========================================
    Modal
 ======================================== */
 .modal-overlay {

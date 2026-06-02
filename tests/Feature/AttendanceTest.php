@@ -24,6 +24,7 @@ class AttendanceTest extends TestCase
     private Institution $institution;
     private User $teacher;
     private User $student;
+    private User $studentTwo;
     private User $outsider;
     private Classroom $classroom;
     private Session $session;
@@ -64,6 +65,7 @@ class AttendanceTest extends TestCase
 
         $this->teacher = $this->createUser('teacher@test.com', 'Teacher');
         $this->student = $this->createUser('student@test.com', 'Student');
+        $this->studentTwo = $this->createUser('student2@test.com', 'Student');
         $this->outsider = $this->createUser('outsider@test.com', 'Student');
 
         $this->classroom = Classroom::withoutGlobalScopes()->create([
@@ -80,6 +82,13 @@ class AttendanceTest extends TestCase
         Enrollment::create([
             'classroom_id' => $this->classroom->id,
             'student_id'   => $this->student->id,
+            'enrolled_at'  => now(),
+            'is_active'    => true,
+        ]);
+
+        Enrollment::create([
+            'classroom_id' => $this->classroom->id,
+            'student_id'   => $this->studentTwo->id,
             'enrolled_at'  => now(),
             'is_active'    => true,
         ]);
@@ -296,8 +305,38 @@ class AttendanceTest extends TestCase
             'status'     => 'absent',
         ]);
 
+        $this->assertDatabaseHas('attendances', [
+            'session_id' => $this->session->id,
+            'student_id' => $this->studentTwo->id,
+            'status'     => 'absent',
+        ]);
+
         $this->assertFalse($this->session->fresh()->is_active);
         $this->assertFalse($this->validKey->fresh()->is_active);
+    }
+
+    #[Test]
+    public function stop_key_marks_absent_for_all_unregistered_students(): void
+    {
+        Attendance::withoutGlobalScopes()
+            ->where('session_id', $this->session->id)
+            ->delete();
+
+        $this->actingAs($this->teacher)
+            ->postJson(route('asistencias.docente.clave.detener', $this->session))
+            ->assertOk();
+
+        $this->assertDatabaseHas('attendances', [
+            'session_id' => $this->session->id,
+            'student_id' => $this->student->id,
+            'status'     => 'absent',
+        ]);
+
+        $this->assertDatabaseHas('attendances', [
+            'session_id' => $this->session->id,
+            'student_id' => $this->studentTwo->id,
+            'status'     => 'absent',
+        ]);
     }
 
     #[Test]

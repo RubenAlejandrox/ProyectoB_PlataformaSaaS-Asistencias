@@ -46,6 +46,8 @@ Route::get('/aviso-de-privacidad', function () {
 Route::post('/login',    [AuthController::class, 'loginWeb'])->name('auth.login');
 Route::post('/register', [AuthController::class, 'register'])->name('auth.register');
 Route::post('/logout',   [AuthController::class, 'logoutWeb'])->name('auth.logout')->middleware('auth');
+Route::get('/forgot-password',  [AuthController::class, 'showForgot'])->name('password.request');
+Route::post('/forgot-password', [AuthController::class, 'processForgot'])->name('password.forgot');
 
 // ──  Rutas Privadas / Protegidas (Solo para usuarios logueados) ──────────
 Route::middleware(['auth'])->group(function () {
@@ -88,6 +90,9 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/admin/sesion/{session}', [AdminEditController::class, 'deleteSession'])
         ->middleware('role:Administrator')
         ->name('admin.sesion.delete');
+    Route::put('/admin/usuarios/{user}/reset-password', [AdminEditController::class, 'resetUserPassword'])
+        ->middleware('role:Administrator')
+        ->name('admin.usuario.reset-password');
     Route::get('/admin/bitacora', [AuditLogController::class, 'index'])
         ->middleware('role:Administrator')
         ->name('bitacora.index');

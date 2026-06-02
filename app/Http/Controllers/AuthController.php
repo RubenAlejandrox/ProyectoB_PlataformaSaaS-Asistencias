@@ -17,6 +17,8 @@ use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
+    private const RESET_PASSWORD_CONTACT_MESSAGE = 'Contacta a tu administrador para restablecer tu contraseña.';
+
     // ── API Login (para tests y app móvil) ───────────────────────────────────
     public function login(LoginRequest $request): JsonResponse
     {
@@ -70,6 +72,83 @@ class AuthController extends Controller
     {
         auth()->user()->currentAccessToken()->delete();
         return response()->json(['message' => 'Logged out successfully.']);
+    }
+
+    // ── WEB Forgot Password (sin correo) ─────────────────────────────────────
+    public function showForgot()
+    {
+        return view('auth.forgot-password');
+    }
+
+    public function processForgot(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+        ], [
+            'email.required' => 'Ingresa tu correo electrónico.',
+            'email.email'    => 'Ingresa un correo válido.',
+        ]);
+
+        $user = User::withoutGlobalScopes()
+            ->with('institution:id,name')
+            ->where('email', $request->email)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $user) {
+            return view('auth.forgot-result', [
+                'found'          => false,
+                'adminName'      => null,
+                'adminEmail'     => null,
+                'adminPhone'     => null,
+                'userName'       => null,
+                'institutionName'=> null,
+                'message'        => self::RESET_PASSWORD_CONTACT_MESSAGE,
+            ]);
+        }
+
+        $adminRoleQuery = function ($q) {
+            $q->whereIn('name', ['Administrator', 'Administrador'])
+                ->orWhere('name', 'ILIKE', '%admin%');
+        };
+
+        $admin = User::withoutGlobalScopes()
+            ->where('institution_id', $user->institution_id)
+            ->where('is_active', true)
+            ->whereHas('roles', $adminRoleQuery)
+            ->first();
+
+        $adminSource = 'institution';
+
+        // Si el mismo usuario es admin, úsalo como contacto válido.
+        if (! $admin && $user->hasRole('Administrator')) {
+            $admin = $user;
+        }
+
+        // Fallback: primer admin activo global del sistema.
+        if (! $admin) {
+            $admin = User::withoutGlobalScopes()
+                ->where('is_active', true)
+                ->whereHas('roles', $adminRoleQuery)
+                ->first();
+
+            if ($admin) {
+                $adminSource = 'global';
+            } else {
+                $adminSource = 'none';
+            }
+        }
+
+        return view('auth.forgot-result', [
+            'found'           => true,
+            'userName'        => $user->first_name,
+            'institutionName' => $user->institution?->name,
+            'adminName'       => trim(($admin?->first_name ?? '').' '.($admin?->last_name ?? '')),
+            'adminEmail'      => $admin?->email,
+            'adminPhone'      => null,
+            'adminSource'     => $adminSource,
+            'message'         => self::RESET_PASSWORD_CONTACT_MESSAGE,
+        ]);
     }
 
     // ── WEB Login (Blade form → sesión + redirección por rol) ────────────────

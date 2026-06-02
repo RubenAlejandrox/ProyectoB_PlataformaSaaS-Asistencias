@@ -8,20 +8,24 @@ use App\Models\AuditLog;
 use App\Models\Enrollment;
 use App\Models\Justification;
 use App\Models\Session;
+use App\Models\User;
 use App\Services\AttendanceProgressService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\View\View;
 
 class AdminEditController extends Controller
 {
+    private const DEFAULT_RESET_PASSWORD = 'GamaSolu1234$+';
+
     public function __construct(
         private AttendanceProgressService $progressService
     ) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
         abort_unless(auth()->user()->hasRole('Administrator'), 403);
 
@@ -56,7 +60,41 @@ class AdminEditController extends Controller
             ->limit(20)
             ->get();
 
-        return view('admin.edicion', compact('classrooms', 'attendances', 'enrollments', 'sessions', 'recentLogs'));
+        $roleFilter = $request->string('role')->toString();
+        $search     = trim($request->string('q')->toString());
+
+        $usersQuery = User::withoutGlobalScopes()
+            ->with(['roles', 'institution:id,name'])
+            ->where('is_active', true);
+
+        if ($roleFilter !== '') {
+            $usersQuery->whereHas('roles', fn ($q) => $q->where('name', $roleFilter));
+        }
+
+        if ($search !== '') {
+            $usersQuery->where(function ($q) use ($search) {
+                $q->where('first_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        $users = $usersQuery
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->paginate(15)
+            ->withQueryString();
+
+        return view('admin.edicion', compact(
+            'classrooms',
+            'attendances',
+            'enrollments',
+            'sessions',
+            'recentLogs',
+            'users',
+            'roleFilter',
+            'search'
+        ));
     }
 
     public function correctAttendance(Request $request, ?Attendance $attendance = null): JsonResponse|RedirectResponse
@@ -167,6 +205,37 @@ class AdminEditController extends Controller
         }
 
         return $this->okResponse($request, 'Sesión eliminada correctamente.');
+    }
+
+    public function resetUserPassword(Request $request, User $user): JsonResponse|RedirectResponse
+    {
+        abort_unless(auth()->user()->hasRole('Administrator'), 403);
+
+        $old = [
+            'failed_login_attempts' => $user->failed_login_attempts,
+            'locked_until'          => $user->locked_until,
+        ];
+
+        DB::transaction(function () use ($user, $old) {
+            $this->createAudit(
+                entity: 'users',
+                entityId: (string) $user->id,
+                action: 'reset_password',
+                oldValue: $old,
+                newValue: ['default_password_applied' => true],
+            );
+
+            $user->update([
+                'password_hash'         => Hash::make(self::DEFAULT_RESET_PASSWORD),
+                'failed_login_attempts' => 0,
+                'locked_until'          => null,
+            ]);
+        });
+
+        return $this->okResponse(
+            $request,
+            "Contraseña restablecida para {$user->first_name} {$user->last_name}. Temporal: ".self::DEFAULT_RESET_PASSWORD
+        );
     }
 
     private function createAudit(

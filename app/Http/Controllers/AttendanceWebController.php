@@ -621,13 +621,18 @@ class AttendanceWebController extends Controller
             ->where('is_active', true)
             ->pluck('student_id');
 
-        $registeredIds = Attendance::withoutGlobalScopes()
+        $existingAttendances = Attendance::withoutGlobalScopes()
             ->where('session_id', $session->id)
-            ->pluck('student_id');
+            ->get()
+            ->keyBy('student_id');
 
         $updates = [];
 
-        foreach ($enrolledIds->diff($registeredIds) as $studentId) {
+        foreach ($enrolledIds as $studentId) {
+            if ($existingAttendances->has($studentId)) {
+                continue;
+            }
+
             $attendance = Attendance::create([
                 'session_id' => $session->id,
                 'student_id' => $studentId,
@@ -666,15 +671,19 @@ class AttendanceWebController extends Controller
             ->get()
             ->keyBy('student_id');
 
-        $students = $enrollments->map(function ($enrollment) use ($attendances) {
+        $students = $enrollments->map(function ($enrollment) use ($attendances, $classroomId) {
             $student = $enrollment->student;
             $today   = $attendances->get($student->id);
+            $progress = $this->progressService->calculate($student->id, $classroomId);
 
             return [
                 'student_id'    => $student->id,
                 'name'          => trim($student->first_name.' '.$student->last_name),
+                'initials'      => strtoupper(substr($student->first_name, 0, 1).substr($student->last_name, 0, 1)),
                 'today_status'  => $today?->status,
                 'today_time'    => $today?->created_at?->format('H:i'),
+                'pct'           => $progress['attendance_pct'],
+                'light'         => $progress['light'],
             ];
         })->values()->all();
 

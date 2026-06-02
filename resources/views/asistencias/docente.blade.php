@@ -21,15 +21,28 @@
             </div>
             <div class="header-actions">
                 @if($classrooms->count() > 1)
-                    <form method="GET" action="{{ route('asistencias.docente') }}" style="display:inline;">
-                        <select name="classroom" class="filter-select" onchange="this.form.submit()">
-                            @foreach($classrooms as $c)
-                                <option value="{{ $c->id }}" @selected($classroom && $classroom->id === $c->id)>
-                                    {{ $c->subject_name }} — Gpo. {{ $c->grupo }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </form>
+                    <div class="switch-aula-box">
+                        <div class="switch-aula-title">
+                            <i class="fas fa-random"></i>
+                            Cambiar aula / grupo
+                        </div>
+                        <form method="GET" action="{{ route('asistencias.docente') }}">
+                            <label for="classroomSwitcher" class="switch-aula-label">Selecciona el grupo que vas a gestionar:</label>
+                            <div class="switch-aula-select-wrap">
+                                <select id="classroomSwitcher" name="classroom" class="filter-select switch-aula-select" onchange="this.form.submit()">
+                                    @foreach($classrooms as $c)
+                                        <option value="{{ $c->id }}" @selected($classroom && $classroom->id === $c->id)>
+                                            {{ $c->subject_name }} — Grupo {{ $c->grupo }} ({{ $c->period }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <i class="fas fa-chevron-down switch-aula-chevron" aria-hidden="true"></i>
+                            </div>
+                            <p class="switch-aula-help">
+                                Al cambiar de aula, se actualizan la clave, los alumnos y la sesión del grupo seleccionado.
+                            </p>
+                        </form>
+                    </div>
                 @endif
                 @if($classroom)
                     <span class="badge badge-info">
@@ -510,6 +523,7 @@ function docenteAsistencias() {
                 ? new Date(e.registered_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
                 : null;
             this.actualizarFilaAlumno(e.student_id, status, hora);
+            this.sincronizarRoster();
             if (status === 'present') {
                 this.notify('success', `${e.student_name || 'Alumno'} registró asistencia.`, 'fa-user-check');
             } else if (status === 'absent') {
@@ -556,6 +570,7 @@ function docenteAsistencias() {
             (payload.students || []).forEach(s => {
                 const status = s.today_status || 'pending';
                 this.actualizarFilaAlumno(s.student_id, status, s.today_time);
+                this.actualizarMetricasAlumno(s.student_id, s);
             });
             (payload.updates || []).forEach(u => {
                 this.actualizarFilaAlumno(u.student_id, u.status, u.registered_at);
@@ -567,6 +582,7 @@ function docenteAsistencias() {
             if (!row) return;
             const st = status || 'pending';
             row.dataset.estado = st;
+            this.animarActualizacion(row);
             const estadoCell = row.querySelector('.estado-cell');
             if (!estadoCell) return;
             if (st === 'present') {
@@ -587,6 +603,46 @@ function docenteAsistencias() {
                     horaCell.textContent = d;
                 }
             }
+        },
+
+        actualizarMetricasAlumno(studentId, data) {
+            const row = document.querySelector(`tr[data-student-id="${studentId}"]`);
+            if (!row) return;
+
+            const pct = Number(data.pct ?? 0);
+            const light = (data.light || 'green').toLowerCase();
+
+            const pctCell = row.querySelector('.pct-cell');
+            const bar = row.querySelector('.progress-bar-mini');
+            if (pctCell) pctCell.textContent = `${pct}%`;
+            if (bar) {
+                bar.style.width = `${Math.min(pct, 100)}%`;
+                bar.classList.remove('progress-warning', 'progress-risk');
+                if (light === 'amber') bar.classList.add('progress-warning');
+                if (light === 'red') bar.classList.add('progress-risk');
+            }
+
+            const risk = row.querySelector('.riesgo');
+            if (risk) {
+                risk.classList.remove('riesgo-ok', 'riesgo-medio', 'riesgo-alto');
+                if (light === 'green') {
+                    risk.classList.add('riesgo-ok');
+                    risk.innerHTML = '<i class="fas fa-circle"></i> Bajo';
+                } else if (light === 'amber') {
+                    risk.classList.add('riesgo-medio');
+                    risk.innerHTML = '<i class="fas fa-circle"></i> Medio';
+                } else {
+                    risk.classList.add('riesgo-alto');
+                    risk.innerHTML = '<i class="fas fa-circle"></i> Alto';
+                }
+            }
+        },
+
+        animarActualizacion(row) {
+            row.classList.remove('row-updated');
+            void row.offsetWidth;
+            row.classList.add('row-updated');
+            setTimeout(() => row.classList.remove('row-updated'), 850);
         },
 
         async cambiarEstatus(studentId, status) {

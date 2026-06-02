@@ -144,7 +144,7 @@
                         <div class="checkbox"><i class="fas fa-check"></i></div>
                         <span class="checkbox-label">Recordarme</span>
                     </div>
-                    <a href="#" class="forgot-link">¿Olvidaste tu contraseña?</a>
+                    <a href="{{ route('password.request') }}" class="forgot-link">¿Olvidaste tu contraseña?</a>
                 </div>
 
                 <button type="submit" class="btn btn-primary btn-lg">
