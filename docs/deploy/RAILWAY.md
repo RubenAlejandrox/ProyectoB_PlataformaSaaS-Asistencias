@@ -11,15 +11,18 @@ Guía corregida (Composer + PHP en Nixpacks). Sigue el orden de las **Partes 1�
 | `nixpacks.toml` | PHP 8.3, extensiones, **`phpPackages.composer`**, `npm`, build Vite, `NIXPACKS_PHP_ROOT_DIR` |
 | `nginx.template.conf` | Nginx + buffers FastCGI, `client_max_body_size`, timeouts (evita 502/504) |
 | `.user.ini` / `public/.user.ini` | `memory_limit`, subidas y `max_execution_time` para PHP |
-| `scripts/railway-start-nginx.sh` | Arranque **Nginx + PHP-FPM** (producción; no `artisan serve`) |
-| `railway.json` | Nixpacks, **preDeploy** migrate, start Nginx, healthcheck `/up` |
+| `scripts/railway-start.sh` | Arranque **php artisan serve** en `$PORT` (Nixpacks no trae nginx) |
+| `scripts/railway-start-nginx.sh` | Opcional: Nginx + PHP-FPM si añades nginx al build |
+| `railway.json` | Nixpacks, **preDeploy** migrate, start `railway-start.sh`, healthcheck `/up` |
 | `Procfile` | `web` / `worker` / `reverb` |
 | `config/database.php` | `DB_URL`, `sslmode=require` para Supabase |
 | `bootstrap/app.php` | `trustProxies(at: '*')` para HTTPS en Railway |
 
-### Opción 1 — Nixpacks + Nginx + PHP-FPM (recomendado)
+### Opción 1 — Nixpacks + `php artisan serve` (recomendado en Railway)
 
-El servicio **Web** ya no usa `php artisan serve` (un solo proceso, malo para ~200 usuarios). Usa la plantilla oficial de Nixpacks ampliada en `nginx.template.conf`.
+El servicio **Web** arranca con `bash scripts/railway-start.sh` (`php artisan serve --host=0.0.0.0 --port=$PORT`). Nixpacks no instala `nginx` por defecto; si ves `nginx: not found`, confirma que **no** uses `railway-start-nginx.sh` en el start command.
+
+Para Nginx + PHP-FPM añade `nginx` a `nixPkgs` en `nixpacks.toml` y cambia el start command a `bash scripts/railway-start-nginx.sh` (`nginx.template.conf`).
 
 **PHP (`memory_limit`, subidas, tiempo de ejecución)** — archivo `.user.ini` en la raíz (y copia en `public/`). En el build, Nixpacks también lo fusiona al `php.ini` del contenedor. Respaldo en Nginx vía `fastcgi_param PHP_VALUE` en `nginx.template.conf`.
 
@@ -83,7 +86,7 @@ DB_SSLMODE=require
 SESSION_DRIVER=database
 SESSION_SECURE_COOKIE=true
 SESSION_SAME_SITE=lax
-SESSION_DOMAIN=
+SESSION_DOMAIN=TU-APP.up.railway.app
 CACHE_STORE=database
 QUEUE_CONNECTION=database
 
@@ -118,9 +121,13 @@ VITE_REVERB_HOST="${REVERB_HOST}"
 VITE_REVERB_PORT="${REVERB_PORT}"
 VITE_REVERB_SCHEME="${REVERB_SCHEME}"
 
-# Mail (demo sin SMTP)
-MAIL_MAILER=log
+# Mail
+MAIL_MAILER=resend
+RESEND_API_KEY=re_xxxxxxxx
+# Si en Railway solo existe RESEND_KEY, renómbrala a RESEND_API_KEY o deja ambas (config acepta fallback).
 ```
+
+`SESSION_STORE` y `SESSION_CONNECTION` vacíos son normales (Laravel usa defaults).
 
 ### Servicio Worker
 
@@ -171,7 +178,7 @@ Si hace falta manualmente, ejecuta en **Supabase → SQL Editor**:
 2. Railway → **New Project** → repo GitHub.
 3. Servicio **Web** → pegar variables (con `APP_KEY`).
 4. **Networking** → **Generate Domain** → actualizar `APP_URL` y `SANCTUM_STATEFUL_DOMAINS`.
-5. **Deploy** del Web → revisar logs (`composer install`, `npm run build`, arranque **nginx** / **php-fpm**, no `artisan serve`).
+5. **Deploy** del Web → revisar logs (`composer install`, `npm run build`, `artisan serve` en `$PORT`, sin error `nginx: not found`).
 6. Probar: `https://TU-APP.up.railway.app/up` → debe responder OK.
 7. Crear servicio **Worker** (mismas vars + start command).
 8. Crear servicio **Reverb** → dominio → actualizar `REVERB_HOST` en Web → redeploy.
@@ -190,12 +197,15 @@ Si hace falta manualmente, ejecuta en **Supabase → SQL Editor**:
 | `composer: command not found` | Confirma que `phpPackages.composer` está en `nixpacks.toml` y haz **Redeploy** limpio. |
 | `undefined variable 'npm'` | No pongas `npm` en `nixPkgs`; usa solo `nodejs_20` (npm ya viene incluido). |
 | `config:cache` sin APP_KEY | Añade `APP_KEY` en variables del servicio **antes** del build. |
-| 419 / sesión | `SESSION_DOMAIN` vacío; `SANCTUM_STATEFUL_DOMAINS` = host Railway sin `https://`. |
+| 500 al guardar sesión | `sessions.user_id` debe ser **uuid** si `users.id` es uuid. Corre migraciones o `docs/deploy/supabase-railway-tablas.sql`. |
+| 419 / sesión | `SESSION_DOMAIN` = host Railway sin `https://`; `SANCTUM_STATEFUL_DOMAINS` igual. |
+| `nginx: not found` | Start command = `bash scripts/railway-start.sh` (ver `railway.json` / Procfile). |
+| Resend sin enviar | Variable `RESEND_API_KEY` (no solo `RESEND_KEY`). |
 | SSL base de datos | `DB_SSLMODE=require` y host Supabase correcto. |
 | Assets sin CSS | Revisa log: `npm run build` debe completar sin error. |
 | 502 / 504 en picos de tráfico | Sube `FPM_MAX_CHILDREN` según RAM; revisa `nginx.template.conf` (timeouts/buffers). |
 | Subida de archivo &gt; 1 MB falla | Confirma `.user.ini` y `client_max_body_size 50M` en `nginx.template.conf`. |
-| Sigue saliendo `artisan serve` | En Railway → **Settings** → Start command debe ser `bash scripts/railway-start-nginx.sh` o vacío si usas `railway.json`. |
+| Sigue saliendo `nginx: not found` | Railway → **Settings** → Start command = `bash scripts/railway-start.sh` o vacío si usas `railway.json`. |
 
 ---
 

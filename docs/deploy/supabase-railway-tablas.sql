@@ -1,5 +1,10 @@
 -- Opcional: ejecutar en Supabase SQL Editor si SESSION_DRIVER/CACHE_STORE=database
 -- y las migraciones de Laravel aún no corrieron en ese proyecto.
+--
+-- Si sessions.user_id quedó en bigint (Laravel por defecto) y users.id es uuid, ejecuta:
+--   ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_user_id_foreign;
+--   ALTER TABLE sessions ALTER COLUMN user_id TYPE uuid USING NULL;
+-- O despliega la migración 2026_06_02_180000_ensure_laravel_http_sessions_table_uuid_user_id.
 
 CREATE TABLE IF NOT EXISTS sessions (
     id VARCHAR(255) PRIMARY KEY,

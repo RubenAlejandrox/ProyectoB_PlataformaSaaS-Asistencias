@@ -35,7 +35,8 @@ return [
     ],
 
     'resend' => [
-        'key' => env('RESEND_API_KEY'),
+        // Railway u otros entornos pueden definir RESEND_KEY en lugar de RESEND_API_KEY.
+        'key' => env('RESEND_API_KEY', env('RESEND_KEY')),
     ],
 
     'ses' => [

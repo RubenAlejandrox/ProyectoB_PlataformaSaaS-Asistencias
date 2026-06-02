@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Desarrollo local rápido. En Railway usa scripts/railway-start-nginx.sh (Nginx + PHP-FPM).
+# Arranque Web en Railway y local: php artisan serve (Nixpacks no incluye nginx por defecto).
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+APP_DIR="${APP_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+cd "$APP_DIR"
 
 php artisan config:cache 2>/dev/null || true
 php artisan route:cache 2>/dev/null || true

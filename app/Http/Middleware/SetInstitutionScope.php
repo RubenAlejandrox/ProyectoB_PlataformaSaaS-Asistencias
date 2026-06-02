@@ -38,8 +38,14 @@ class SetInstitutionScope
         if (auth()->check()) {
             $user = auth()->user();
 
-            DB::statement("SET app.institution_id = '{$user->institution_id}'");
-            DB::statement("SET app.user_id = '{$user->id}'");
+            DB::select('SELECT set_config(?, ?, false)', ['app.user_id', (string) $user->id]);
+
+            if (! empty($user->institution_id)) {
+                DB::select('SELECT set_config(?, ?, false)', [
+                    'app.institution_id',
+                    (string) $user->institution_id,
+                ]);
+            }
         }
 
         return $next($request);

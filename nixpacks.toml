@@ -1,5 +1,5 @@
-# Railway / Nixpacks — Laravel + Nginx + PHP-FPM (producción)
-# Ver docs/deploy/RAILWAY.md y nginx.template.conf / .user.ini
+# Railway / Nixpacks — Laravel + php artisan serve (producción)
+# Ver docs/deploy/RAILWAY.md. nginx.template.conf queda opcional si añades nginx al build.
 
 [variables]
 NIXPACKS_PHP_ROOT_DIR = "/app/public"
@@ -34,12 +34,12 @@ cmds = [
 [phases.build]
 cmds = [
   "if [ -f .user.ini ]; then UPLOAD_INI_PATH=$(find /nix/store -path '*/lib/php.ini' 2>/dev/null | tail -n 1); if [ -n \"$UPLOAD_INI_PATH\" ]; then echo '--- .user.ini ---' >> \"$UPLOAD_INI_PATH\"; cat .user.ini >> \"$UPLOAD_INI_PATH\"; fi; fi",
-  "chmod +x scripts/railway-start-nginx.sh",
+  "chmod +x scripts/railway-start.sh",
   "php artisan config:cache || true",
   "php artisan route:cache || true",
   "php artisan view:cache || true",
   "php artisan event:cache || true"
 ]
 
-# Sin [start] aquí: Railway usa scripts/railway-start-nginx.sh (Nginx+FPM).
+# Sin [start] aquí: Railway usa scripts/railway-start.sh (artisan serve en $PORT).
 # Migraciones: preDeployCommand en railway.json

@@ -5,7 +5,7 @@
   },
   "deploy": {
     "preDeployCommand": "php artisan migrate --force --no-interaction",
-    "startCommand": "bash scripts/railway-start-nginx.sh",
+    "startCommand": "bash scripts/railway-start.sh",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3,
     "healthcheckPath": "/up"
