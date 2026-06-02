@@ -128,7 +128,7 @@
                         </form>
                     @elseif(!$activeSession)
                         <p class="clave-desc" style="margin-bottom:1rem;">
-                            La sesión de hoy está cerrada. Puedes corregir estados en la tabla de alumnos.
+                            La sesión de hoy está cerrada. Consulta el estado de los alumnos en la tabla.
                         </p>
                     @else
                         <div x-show="!claveActiva">
@@ -240,9 +240,6 @@
                                     <th>Estado hoy</th>
                                     <th>Hora registro</th>
                                     <th>Riesgo</th>
-                                    @if($todaySession)
-                                        <th>Acciones</th>
-                                    @endif
                                 </tr>
                             </thead>
                             <tbody>
@@ -298,33 +295,6 @@
                                                 <i class="fas fa-circle"></i> {{ $riesgoLabel }}
                                             </span>
                                         </td>
-                                        @if($todaySession)
-                                            <td class="estatus-actions-cell">
-                                                <div class="estatus-actions" title="Corrección manual del docente">
-                                                    <button type="button"
-                                                            class="estatus-btn estatus-btn--present"
-                                                            title="Marcar asistencia"
-                                                            :disabled="cambiandoEstatus === '{{ $row['id'] }}'"
-                                                            @click="cambiarEstatus('{{ $row['id'] }}', 'present')">
-                                                        <i class="fas fa-check"></i>
-                                                    </button>
-                                                    <button type="button"
-                                                            class="estatus-btn estatus-btn--absent"
-                                                            title="Marcar falta (habilita justificante 72 h)"
-                                                            :disabled="cambiandoEstatus === '{{ $row['id'] }}'"
-                                                            @click="cambiarEstatus('{{ $row['id'] }}', 'absent')">
-                                                        <i class="fas fa-times"></i>
-                                                    </button>
-                                                    <button type="button"
-                                                            class="estatus-btn estatus-btn--pending"
-                                                            title="Dejar pendiente (sin registro)"
-                                                            :disabled="cambiandoEstatus === '{{ $row['id'] }}' || {{ ($row['has_approved_justification'] ?? false) ? 'true' : 'false' }}"
-                                                            @click="cambiarEstatus('{{ $row['id'] }}', 'pending')">
-                                                        <i class="fas fa-undo"></i>
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        @endif
                                     </tr>
                                 @endforeach
                             </tbody>
