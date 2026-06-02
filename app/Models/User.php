@@ -142,14 +142,4 @@ class User extends Authenticatable
     {
         return $this->hasMany(Alert::class, 'student_id');
     }
-
-    /**
-     * Nombre del atributo usado como identificador de autenticación (correo).
-     *
-     * @return string
-     */
-    public function getAuthIdentifierName(): string
-    {
-        return 'email';
-    }
 }
