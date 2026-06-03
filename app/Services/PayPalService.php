@@ -73,7 +73,7 @@ class PayPalService
                 'description'  => "Plan {$plan->name} — GAMA Asistencias",
                 'amount'       => [
                     'currency_code' => $this->currency,
-                    'value'         => number_format($plan->price, 2, '.', ''),
+                    'value'         => $this->formatMoney($plan->price),
                 ],
             ]],
             'application_context' => [
@@ -142,7 +142,7 @@ class PayPalService
                         'description'  => "Renovación plan {$sub->plan->name}",
                         'amount'       => [
                             'currency_code' => $this->currency,
-                            'value'         => number_format($sub->plan->price, 2, '.', ''),
+                            'value'         => $this->formatMoney($sub->plan->price),
                         ],
                     ]],
                 ];
@@ -203,6 +203,17 @@ class PayPalService
         Log::error("PayPal renewal failed after {$maxRetries} attempts. Subscription {$sub->id} suspended.");
 
         return false;
+    }
+
+    /**
+     * Formatea un monto para la API PayPal (decimal:2 de Eloquent llega como string).
+     *
+     * @param float|string|int $amount Importe del plan o pago
+     * @return string Valor con dos decimales y punto decimal
+     */
+    private function formatMoney(float|string|int $amount): string
+    {
+        return number_format((float) $amount, 2, '.', '');
     }
 
     /**

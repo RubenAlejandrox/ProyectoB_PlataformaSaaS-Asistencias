@@ -1,9 +1,10 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "gama/plataforma-saas-asistencias",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "description": "Plataforma SaaS multi-institución para registro de asistencias académicas, justificantes, reportes analíticos y administración de membresías con aislamiento por tenant.",
+    "version": "1.0.0",
+    "keywords": ["gama", "asistencias", "saas", "multi-tenant", "laravel"],
     "license": "MIT",
     "require": {
         "php": "^8.2",
